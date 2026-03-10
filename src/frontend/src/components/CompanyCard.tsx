@@ -11,10 +11,9 @@ import { useMemo } from "react";
 interface CompanyCardProps {
   company: Company;
   onClick: () => void;
-  index?: number;
 }
 
-export function CompanyCard({ company, onClick, index = 0 }: CompanyCardProps) {
+export function CompanyCard({ company, onClick }: CompanyCardProps) {
   const positiveCount = company.newsArticles.filter(a => a.signal === "positive").length;
   const negativeCount = company.newsArticles.filter(a => a.signal === "negative").length;
   const hasBreaking = company.newsArticles.some(a => a.isBreaking);
@@ -42,13 +41,9 @@ export function CompanyCard({ company, onClick, index = 0 }: CompanyCardProps) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{
-        duration: 0.5,
-        delay: index * 0.08,
-        ease: [0.21, 0.47, 0.32, 0.98],
-      }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.21, 0.47, 0.32, 0.98] }}
       whileHover={{ y: -3, transition: { duration: 0.25 } }}
     >
       <div
@@ -118,9 +113,20 @@ export function CompanyCard({ company, onClick, index = 0 }: CompanyCardProps) {
           </div>
 
           {/* Company summary */}
-          <p className="text-[12px] text-muted-foreground/55 leading-[1.65] line-clamp-2 mb-4 headline-font-italic">
+          <p className="text-[12px] text-muted-foreground/55 leading-[1.65] line-clamp-2 headline-font-italic" style={{ marginBottom: company.summaryMeta?.signals?.length ? '8px' : '16px' }}>
             {company.summary}
           </p>
+
+          {/* Event signal tags */}
+          {company.summaryMeta?.signals && company.summaryMeta.signals.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-4">
+              {company.summaryMeta.signals.map((sig) => (
+                <span key={sig} className="text-[8px] font-bold uppercase tracking-[0.1em] px-2 py-0.5 border border-border/50 text-muted-foreground/60 bg-foreground/[0.02]">
+                  {sig}
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Divider with label */}
           <div className="flex items-center gap-3 mb-2">

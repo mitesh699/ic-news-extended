@@ -59,6 +59,7 @@ export async function generateSummaryForCompany(companyId: string): Promise<bool
       source: a.source || 'unknown',
       publishedAt: a.publishedAt,
       sentiment: a.sentiment,
+      summary: a.summary,
     })),
   })
 
@@ -72,6 +73,8 @@ export async function generateSummaryForCompany(companyId: string): Promise<bool
     keyThemes: result.keyThemes,
     outlook: result.outlook,
     actionItems: result.actionItems,
+    confidence: result.confidence,
+    signals: result.signals ?? [],
   }
 
   await db.summary.create({

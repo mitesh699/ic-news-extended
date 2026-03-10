@@ -11,10 +11,14 @@ export interface NewsArticle {
   tags?: string[];
 }
 
+export type EventSignal = 'funding' | 'hiring' | 'product' | 'regulatory' | 'M&A' | 'risk' | 'partnership';
+
 export interface SummaryMeta {
   keyThemes: string[];
   outlook: string;
   actionItems: string[];
+  confidence?: string;
+  signals: EventSignal[];
 }
 
 export interface Company {

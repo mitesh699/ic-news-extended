@@ -1,8 +1,9 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Building2, RefreshCw, ChevronDown, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -100,6 +101,41 @@ const Companies = () => {
         return a.name.localeCompare(b.name);
       });
   }, [companies, search, sector, sortBy]);
+
+  // Virtual grid setup
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [cols, setCols] = useState(3);
+
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      setCols(w >= 1024 ? 3 : w >= 640 ? 2 : 1);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const rows = useMemo(() => {
+    const result: (typeof filtered)[] = [];
+    for (let i = 0; i < filtered.length; i += cols) {
+      result.push(filtered.slice(i, i + cols));
+    }
+    return result;
+  }, [filtered, cols]);
+
+  const parentOffsetRef = useRef(0);
+  useLayoutEffect(() => {
+    parentOffsetRef.current = gridRef.current?.offsetTop ?? 0;
+  });
+
+  const virtualizer = useWindowVirtualizer({
+    count: rows.length,
+    estimateSize: () => 380,
+    overscan: 3,
+    scrollMargin: parentOffsetRef.current,
+  });
 
   return (
     <PageTransition className="min-h-screen bg-background">
@@ -219,12 +255,33 @@ const Companies = () => {
             )}
           </motion.div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            <AnimatePresence mode="popLayout">
-              {filtered.map((company, i) => (
-                <CompanyCard key={company.id} company={company} onClick={() => navigate(`/company/${company.id}`)} index={i} />
-              ))}
-            </AnimatePresence>
+          <div
+            ref={gridRef}
+            style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}
+          >
+            {virtualizer.getVirtualItems().map((vRow) => (
+              <div
+                key={vRow.key}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${vRow.start - virtualizer.options.scrollMargin}px)`,
+                  paddingBottom: "20px",
+                }}
+              >
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {rows[vRow.index].map((company) => (
+                    <CompanyCard
+                      key={company.id}
+                      company={company}
+                      onClick={() => navigate(`/company/${company.id}`)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </main>

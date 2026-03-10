@@ -53,6 +53,8 @@ describe('generateSummaryForCompany', () => {
           keyThemes: ['earnings', 'growth'],
           outlook: 'positive',
           actionItems: [],
+          confidence: undefined,
+          signals: [],
         }),
       },
     })

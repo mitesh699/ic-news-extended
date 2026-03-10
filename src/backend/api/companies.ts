@@ -9,7 +9,10 @@ const COMPANIES_CACHE_TTL = 60_000 // 60 seconds
 const VALID_SIGNALS = ['positive', 'negative', 'neutral'] as const
 type Signal = (typeof VALID_SIGNALS)[number]
 
-function parseSummaryMeta(raw: string | null | undefined): { keyThemes: string[]; outlook: string; actionItems: string[] } | null {
+const VALID_EVENT_SIGNALS = ['funding', 'hiring', 'product', 'regulatory', 'M&A', 'risk', 'partnership'] as const
+type EventSignal = (typeof VALID_EVENT_SIGNALS)[number]
+
+function parseSummaryMeta(raw: string | null | undefined): { keyThemes: string[]; outlook: string; actionItems: string[]; confidence?: string; signals: EventSignal[] } | null {
   if (!raw) return null
   try {
     const parsed = JSON.parse(raw)
@@ -17,6 +20,10 @@ function parseSummaryMeta(raw: string | null | undefined): { keyThemes: string[]
       keyThemes: Array.isArray(parsed.keyThemes) ? parsed.keyThemes : [],
       outlook: parsed.outlook ?? 'stable',
       actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : [],
+      confidence: ['high', 'medium', 'low'].includes(parsed.confidence) ? parsed.confidence : undefined,
+      signals: Array.isArray(parsed.signals)
+        ? parsed.signals.filter((s: unknown) => VALID_EVENT_SIGNALS.includes(s as EventSignal))
+        : [],
     }
   } catch {
     return null
