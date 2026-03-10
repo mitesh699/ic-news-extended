@@ -1,0 +1,219 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Space+Mono:wght@400;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 40 20% 97%;
+    --foreground: 220 25% 8%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 8%;
+    --primary: 0 0% 8%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 10% 93%;
+    --secondary-foreground: 220 25% 8%;
+    --muted: 40 8% 93%;
+    --muted-foreground: 220 8% 46%;
+    --accent: 345 80% 52%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 10% 88%;
+    --input: 40 10% 88%;
+    --ring: 0 0% 8%;
+    --radius: 0.5rem;
+
+    --signal-positive: 152 55% 36%;
+    --signal-negative: 0 65% 48%;
+    --signal-neutral: 38 70% 48%;
+    --signal-breaking: 345 80% 52%;
+
+    --ticker-bg: 0 0% 4%;
+    --ticker-fg: 40 10% 85%;
+    --chat-bg: 0 0% 100%;
+    --chat-user: 0 0% 8%;
+    --chat-ai: 40 8% 95%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --shadow-glass: 0 8px 32px -8px rgba(0, 0, 0, 0.08), 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+    --shadow-glass-hover: 0 20px 60px -15px rgba(0, 0, 0, 0.15), 0 8px 24px -8px rgba(0, 0, 0, 0.08);
+    --shadow-glow-accent: 0 0 30px -5px hsl(345 80% 52% / 0.15);
+  }
+
+  .dark {
+    --background: 220 20% 5%;
+    --foreground: 40 10% 92%;
+    --card: 220 18% 8%;
+    --card-foreground: 40 10% 92%;
+    --popover: 220 18% 8%;
+    --popover-foreground: 40 10% 92%;
+    --primary: 40 10% 92%;
+    --primary-foreground: 220 20% 5%;
+    --secondary: 220 14% 14%;
+    --secondary-foreground: 40 10% 92%;
+    --muted: 220 14% 13%;
+    --muted-foreground: 220 8% 52%;
+    --accent: 345 80% 56%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 40 10% 92%;
+    --border: 220 14% 14%;
+    --input: 220 14% 14%;
+    --ring: 40 10% 92%;
+
+    --ticker-bg: 220 25% 4%;
+    --ticker-fg: 40 8% 78%;
+    --chat-bg: 220 18% 8%;
+    --chat-user: 40 10% 92%;
+    --chat-ai: 220 14% 12%;
+
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    --shadow-glass: 0 8px 32px -8px rgba(0, 0, 0, 0.3), 0 2px 8px -2px rgba(0, 0, 0, 0.2);
+    --shadow-glass-hover: 0 20px 60px -15px rgba(0, 0, 0, 0.5), 0 8px 24px -8px rgba(0, 0, 0, 0.3);
+    --shadow-glow-accent: 0 0 30px -5px hsl(345 80% 56% / 0.25);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'ss02';
+  }
+}
+
+@layer components {
+  .headline-font {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-style: normal;
+  }
+  .headline-font-italic {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-style: italic;
+  }
+  .mono {
+    font-family: 'Space Mono', 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+  }
+  .code-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88em;
+  }
+
+  .ticker-bar {
+    background: hsl(var(--ticker-bg));
+    color: hsl(var(--ticker-fg));
+  }
+
+  .breaking-pulse {
+    animation: breaking-pulse 2s ease-in-out infinite;
+  }
+  @keyframes breaking-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .filter-pill {
+    @apply px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em]
+           bg-transparent text-muted-foreground
+           hover:bg-foreground/[0.06] hover:text-foreground
+           transition-all duration-150 cursor-pointer select-none;
+  }
+  .filter-pill-active {
+    @apply bg-foreground text-background
+           hover:bg-foreground/90 hover:text-background;
+  }
+
+  .section-label {
+    @apply text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/60;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 100px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.3); }
+
+  /* Chat */
+  .chat-bubble-user { background: hsl(var(--chat-user)); color: hsl(var(--primary-foreground)); }
+  .chat-bubble-ai { background: hsl(var(--chat-ai)); color: hsl(var(--foreground)); }
+
+  .vertical-text { writing-mode: vertical-rl; text-orientation: mixed; }
+
+  .focus-ring {
+    @apply outline-none ring-0 focus-visible:ring-2 focus-visible:ring-accent/30 focus-visible:ring-offset-1 focus-visible:ring-offset-background;
+  }
+
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  }
+
+  /* ─── Glassmorphism ─── */
+  .glass-card {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    box-shadow: var(--shadow-glass);
+    border: 1px solid hsl(var(--border) / 0.4);
+    transition: all 0.4s cubic-bezier(0.21, 0.47, 0.32, 0.98);
+  }
+  .glass-card:hover {
+    box-shadow: var(--shadow-glass-hover);
+    border-color: hsl(var(--border) / 0.7);
+  }
+
+  .glass-header {
+    background: hsl(var(--card) / 0.6);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    will-change: transform;
+  }
+
+  /* ─── Shimmer skeleton ─── */
+  .shimmer {
+    background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--muted-foreground) / 0.08) 50%, hsl(var(--muted)) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ─── Gradient text ─── */
+  .gradient-text-accent {
+    background: linear-gradient(135deg, hsl(var(--accent)), hsl(320 70% 58%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-accent {
+    box-shadow: var(--shadow-glow-accent);
+  }
+}

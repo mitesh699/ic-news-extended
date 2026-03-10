@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  website     String?
+  sector      String?
+  logoUrl     String?
+  keywords    String?   // JSON array of search terms for news queries
+  scrapedAt   DateTime  @default(now())
+  lastFetchedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  articles    Article[]
+  summaries   Summary[]
+
+  @@index([name])
+  @@index([sector])
+}
+
+model Article {
+  id          String    @id @default(cuid())
+  companyId   String
+  title       String
+  url         String
+  source      String?
+  summary     String?   // One-line article summary for hover preview
+  publishedAt DateTime?
+  fetchedAt   DateTime  @default(now())
+  urlHash     String    @unique
+  sentiment   String?   // "positive" | "negative" | "neutral"
+  isBreaking  Boolean   @default(false)
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, publishedAt(sort: Desc)])
+  @@index([companyId, fetchedAt(sort: Desc)])
+  @@index([urlHash])
+}
+
+model Summary {
+  id            String   @id @default(cuid())
+  companyId     String
+  summaryText   String
+  promptVersion String   @default("v1")
+  articleCount  Int
+  metadata      String?  // JSON: { keyThemes, outlook, actionItems }
+  generatedAt   DateTime @default(now())
+
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, generatedAt(sort: Desc)])
+  @@index([generatedAt])
+}
+
+model Webhook {
+  id        String   @id @default(cuid())
+  url       String   @unique
+  secret    String?  // Optional HMAC-SHA256 signing secret
+  events    String   @default("articles.new") // Comma-separated event types
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}
