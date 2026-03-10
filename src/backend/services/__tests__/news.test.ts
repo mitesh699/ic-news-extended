@@ -21,11 +21,10 @@ vi.mock('../../adapters/llm', () => ({
   ]),
 }))
 
-// Mock rate limiter delay to 0 for fast tests
-vi.mock('../../utils/rate-limiter', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../utils/rate-limiter')>()
-  return { ...actual, NEWS_DELAY_MS: 0 }
-})
+// Mock sleep to be instant for fast tests
+vi.mock('../../utils/sleep', () => ({
+  sleep: vi.fn().mockResolvedValue(undefined),
+}))
 
 import { fetchNewsForCompany, fetchNewsForAllCompanies } from '../news'
 import { db } from '../../db/client'

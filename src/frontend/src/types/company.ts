@@ -8,7 +8,6 @@ export interface NewsArticle {
   signal?: "positive" | "negative" | "neutral";
   isBreaking?: boolean;
   summary?: string;
-  tags?: string[];
 }
 
 export type EventSignal = 'funding' | 'hiring' | 'product' | 'regulatory' | 'M&A' | 'risk' | 'partnership';

@@ -1,10 +1,6 @@
 import { db } from '../db/client'
 import { generateSummary, StructuredSummary } from '../adapters/llm'
-import { LLM_DELAY_MS } from '../utils/rate-limiter'
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+import { sleep } from '../utils/sleep'
 
 export async function generateSummaryForCompany(companyId: string): Promise<boolean> {
   const company = await db.company.findUnique({ where: { id: companyId } })

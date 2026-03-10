@@ -4,7 +4,8 @@ import { db } from '../db/client'
 import Anthropic from '@anthropic-ai/sdk'
 import { cache } from '../utils/cache'
 import { getAnthropic } from '../adapters/llm'
-import { getExa } from '../adapters/exa'
+import { getExa, searchExa } from '../adapters/exa'
+import { formatMetaContext } from '../utils/parseSummaryMeta'
 
 const chat = new Hono()
 
@@ -157,15 +158,7 @@ async function executeLookupCompany(companyName: string): Promise<string> {
   let result = `Company: ${company.name}\nSector: ${company.sector || 'Unknown'}\nDescription: ${company.description || 'N/A'}\n`
 
   if (summary) {
-    let meta = ''
-    if (summary.metadata) {
-      try {
-        const p = JSON.parse(summary.metadata)
-        if (p.outlook) meta += ` | Outlook: ${p.outlook}`
-        if (Array.isArray(p.keyThemes) && p.keyThemes.length) meta += ` | Themes: ${p.keyThemes.join(', ')}`
-      } catch { /* ignore */ }
-    }
-    result += `AI Brief: ${summary.summaryText}${meta}\n`
+    result += `AI Brief: ${summary.summaryText}${formatMetaContext(summary.metadata)}\n`
   }
 
   if (company.articles.length > 0) {
@@ -183,31 +176,7 @@ async function executeLookupCompany(companyName: string): Promise<string> {
 }
 
 async function executeExaSearch(query: string, numResults: number): Promise<string> {
-  const exa = getExa()
-  if (!exa) return 'Search unavailable — EXA_API_KEY not configured.'
-
-  try {
-    const result = await exa.search(query, {
-      type: 'auto',
-      category: 'news',
-      numResults: Math.min(Math.max(numResults, 1), 10),
-      startPublishedDate: new Date(Date.now() - 14 * 86_400_000).toISOString().split('T')[0],
-    })
-
-    if (!result.results || result.results.length === 0) {
-      return `No recent news found for "${query}".`
-    }
-
-    return result.results
-      .map((r) => {
-        const source = r.url ? new URL(r.url).hostname.replace('www.', '') : 'unknown'
-        return `- ${r.title || 'Untitled'} (${source}) ${r.url}`
-      })
-      .join('\n')
-  } catch (err) {
-    console.error('Exa search error in chat:', err instanceof Error ? err.message : String(err))
-    return `Search temporarily unavailable. Please answer using the portfolio context already provided.`
-  }
+  return searchExa(query, { numResults })
 }
 
 chat.post('/', async (c) => {
@@ -302,20 +271,7 @@ chat.post('/', async (c) => {
       .join('\n\n')
 
     const summaryContext = summaries
-      .map((s) => {
-        let meta = ''
-        if (s.metadata) {
-          try {
-            const p = JSON.parse(s.metadata)
-            const outlook = p.outlook ? ` | Outlook: ${p.outlook}` : ''
-            const themes = Array.isArray(p.keyThemes) && p.keyThemes.length > 0
-              ? ` | Themes: ${p.keyThemes.join(', ')}`
-              : ''
-            meta = `${outlook}${themes}`
-          } catch { /* ignore */ }
-        }
-        return `[${s.company.name} (${s.company.sector || 'Unknown'})] ${s.summaryText}${meta}`
-      })
+      .map((s) => `[${s.company.name} (${s.company.sector || 'Unknown'})] ${s.summaryText}${formatMetaContext(s.metadata)}`)
       .join('\n')
 
     // Fetch full company list for awareness

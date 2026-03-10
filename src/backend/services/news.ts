@@ -3,13 +3,10 @@ import { fetchNewsData, type FetchedArticle } from '../adapters/newsdata'
 import { fetchExaNews } from '../adapters/exa'
 import { classifySentiment } from '../adapters/llm'
 import { createHash } from 'crypto'
+import { sleep } from '../utils/sleep'
 
 function hashUrl(url: string): string {
   return createHash('sha256').update(url).digest('hex')
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 export function parseKeywords(raw: string | null): string[] {

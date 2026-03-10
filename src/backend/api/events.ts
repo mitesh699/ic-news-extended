@@ -21,10 +21,6 @@ export function broadcastSSE(event: string, data: Record<string, unknown>): void
   }
 }
 
-export function getSSEClientCount(): number {
-  return clients.size
-}
-
 events.get('/', (c) => {
   return streamSSE(c, async (stream) => {
     const clientId = crypto.randomUUID()

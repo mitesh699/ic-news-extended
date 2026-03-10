@@ -28,7 +28,6 @@ function SignalBar({ signal }: { signal?: string }) {
 export function NewsItem({ article, companyName, companyId, variant = "compact" }: NewsItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const displayDate = new Date(article.publishedAt ?? article.fetchedAt);
-  const hasRealDate = !!article.publishedAt;
   const timeAgo = formatDistanceToNow(displayDate, { addSuffix: false });
   const exactDate = differenceInDays(new Date(), displayDate) > 6
     ? format(displayDate, "MMM d, yyyy")

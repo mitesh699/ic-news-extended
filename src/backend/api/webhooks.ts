@@ -5,32 +5,29 @@ import { requireRefreshToken } from '../middleware/auth'
 
 const webhooks = new Hono()
 
+// Auth middleware — all webhook routes require X-Refresh-Token
+webhooks.use('*', async (c, next) => {
+  if (!requireRefreshToken(c)) {
+    return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
+  }
+  await next()
+})
+
 const createSchema = z.object({
   url: z.string().url().startsWith('https://'),
   secret: z.string().min(8).optional(),
   events: z.string().default('articles.new'),
 })
 
-// List registered webhooks
 webhooks.get('/', async (c) => {
-  if (!requireRefreshToken(c)) {
-    return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
-  }
-
   const hooks = await db.webhook.findMany({
     select: { id: true, url: true, events: true, active: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
   })
-
   return c.json(hooks)
 })
 
-// Register a webhook
 webhooks.post('/', async (c) => {
-  if (!requireRefreshToken(c)) {
-    return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
-  }
-
   const body = await c.req.json().catch(() => null)
   const parsed = createSchema.safeParse(body)
 
@@ -55,12 +52,7 @@ webhooks.post('/', async (c) => {
   return c.json(hook, 201)
 })
 
-// Delete a webhook
 webhooks.delete('/:id', async (c) => {
-  if (!requireRefreshToken(c)) {
-    return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
-  }
-
   const id = c.req.param('id')
 
   try {

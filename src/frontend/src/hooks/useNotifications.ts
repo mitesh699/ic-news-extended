@@ -41,7 +41,6 @@ interface ArticleDate {
 export function useNotifications(articles?: ArticleDate[]) {
   const queryClient = useQueryClient();
   const [sseCount, setSSECount] = useState(0);
-  const [latestEvent, setLatestEvent] = useState<SSEEvent | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -53,7 +52,6 @@ export function useNotifications(articles?: ArticleDate[]) {
     es.addEventListener("articles.new", (e) => {
       try {
         const data: SSEEvent = JSON.parse(e.data);
-        setLatestEvent(data);
         setSSECount((prev) => prev + data.totalNewArticles);
         setDismissed(false);
         queryClient.invalidateQueries({ queryKey: ["companies"] });
@@ -99,11 +97,10 @@ export function useNotifications(articles?: ArticleDate[]) {
 
   const markSeen = useCallback(() => {
     setSSECount(0);
-    setLatestEvent(null);
     setDismissed(true);
     setLastSeen(new Date().toISOString());
     if (articles) savePreviousCount(articles.length);
   }, [articles]);
 
-  return { newCount: totalNew, latestEvent, markSeen };
+  return { newCount: totalNew, markSeen };
 }
