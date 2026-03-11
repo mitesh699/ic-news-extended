@@ -28,7 +28,7 @@ function buildSearchQueries(companyName: string, keywords: string[], sector: str
   return [`"${companyName}" ${sector} company news ${businessTerms}`]
 }
 
-function isRelevant(article: FetchedArticle, companyName: string, keywords: string[]): boolean {
+export function isRelevant(article: FetchedArticle, companyName: string, keywords: string[]): boolean {
   const title = article.title.toLowerCase()
   const url = article.url.toLowerCase()
 

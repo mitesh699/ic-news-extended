@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ChatWidget } from "@/components/ChatWidget";
 import { Sparkline } from "@/components/Sparkline";
+import { CompetitorPanel } from "@/components/CompetitorPanel";
 import { PageTransition } from "@/components/PageTransition";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -179,6 +180,9 @@ export default function CompanyDetail() {
             <ArticleSection articles={positive} label="Positive Coverage" icon={TrendingUp} color="text-signal-positive" borderColor="border-l-signal-positive" delay={0.15} />
             <ArticleSection articles={negative} label="Negative Coverage" icon={TrendingDown} color="text-signal-negative" borderColor="border-l-signal-negative" delay={0.2} />
             <ArticleSection articles={neutral} label="Neutral Coverage" icon={Minus} color="text-signal-neutral" borderColor="border-l-border" delay={0.25} />
+
+            {/* Competitor Intelligence */}
+            {company.id && <CompetitorPanel companyId={company.id} />}
           </div>
 
           {/* Timeline sidebar */}

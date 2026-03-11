@@ -42,6 +42,10 @@ AI-powered portfolio intelligence dashboard for Initialized Capital. Aggregates 
 - **Market Signals** — Positive/Negative/Neutral/Breaking article classification with breaking news ticker
 - **Filters** — By sector (8 real portfolio categories: Climate, Consumer, Crypto, Enterprise, Fintech, Frontier Tech, Healthcare, Real Estate), date range (Today/Week/Month/Year), and sentiment signal
 - **Pagination** — Load More pattern (20 articles per page) for the news feed
+- **Competitive Intelligence** — Track competitors per portfolio company, auto-fetch news with signal detection (funding, hiring, product, regulatory, M&A, risk)
+- **Sector Briefs** — AI-generated sector analysis with trend direction, top signals, competitor moves, and watch list items
+- **Structured Signals** — LLM summaries return typed event signals (funding, hiring, product, regulatory, M&A, risk, partnership) displayed as tags
+- **Virtualized Grid** — TanStack Virtual on /companies page for smooth scrolling across 175+ company cards
 - **Webhooks + SSE** — Register webhook URLs for article notifications; real-time SSE push to connected frontends with notification bell
 - **Newsletter Subscribe** — Sidebar UI for daily/weekly email digest (frontend-ready)
 - **In-Memory Cache** — Companies (60s), chat context (30s) with invalidation on refresh
@@ -112,22 +116,27 @@ cd src/frontend && npm run dev       # frontend → http://localhost:8080 (separ
 ## Data Model
 
 ```
-Company (id, name*, sector, description, website, keywords[JSON], lastFetchedAt)
-  ├── Article (id, companyId→FK, title, url, source, summary, publishedAt?, fetchedAt, urlHash*, sentiment, isBreaking)
-  ├── Summary (id, companyId→FK, summaryText, promptVersion, articleCount, metadata[JSON], generatedAt)
+Source (id, domain*, name, logoUrl?, category, language, trustRank)
 
+Company (id, name*, sector, description, website, keywords[JSON], lastFetchedAt)
+  ├── Article (id, companyId→FK, title, url, canonicalUrl?, source, sourceName?, author?, imageUrl?,
+  │            summary, highlights?, publishedAt?, fetchedAt, urlHash*, sentiment, isBreaking, readingTimeMs?)
+  ├── Summary (id, companyId→FK, summaryText, promptVersion, articleCount, metadata[JSON], generatedAt)
+  ├── Competitor (id, companyId→FK, name, website?, description?, sector?, relevance)
+  │     └── CompetitorArticle (id, competitorId→FK, title, url, source, summary, publishedAt?,
+  │                            fetchedAt, urlHash*, sentiment, signal?)
+
+SectorBrief (id, sector, briefText, metadata[JSON]?, generatedAt)
 Webhook (id, url*, secret?, events, active)
 
 * = unique
 ```
 
-- `Company` is the anchor entity. `Article` and `Summary` are children (cascade delete). `Webhook` is standalone.
-- `urlHash` (SHA-256) deduplicates articles across repeated fetches via `skipDuplicates`.
-- `publishedAt` is nullable — external APIs don't always return dates. `fetchedAt` (defaults to `now()`) is the fallback for ordering.
-- `keywords` (JSON) stores disambiguation terms (e.g. `["autonomous vehicles"]` for Cruise) used to build targeted search queries.
-- `metadata` (JSON) on Summary holds structured LLM output (`keyThemes`, `outlook`, `actionItems`) — no schema migration needed when prompt format changes.
-- Composite indexes on `(companyId, publishedAt DESC)` and `(companyId, fetchedAt DESC)` on Article, `(companyId, generatedAt DESC)` on Summary — optimized for per-company queries.
-- IDs use Prisma `cuid()` — URL-safe, sortable, shorter than UUID v4.
+- `Company` is the anchor entity. `Article`, `Summary`, and `Competitor` are children (cascade delete).
+- `Competitor` tracks competitors per portfolio company. `CompetitorArticle` stores their news with signal detection (funding, hiring, product, regulatory, M&A, risk).
+- `SectorBrief` stores AI-generated sector analysis with trend direction, top signals, competitor moves, and watch list items.
+- `Source` is a reference registry for canonical news source metadata (domain, trust rank, logo).
+- Article enrichment fields (`canonicalUrl`, `author`, `imageUrl`, `highlights`, `readingTimeMs`) mirror news website data patterns.
 
 ## API Endpoints
 
@@ -136,6 +145,15 @@ Webhook (id, url*, secret?, events, active)
 | `GET` | `/api/health` | Health check |
 | `GET` | `/api/companies` | List all companies (optional `?search=`, `?sort=name\|sector\|recent`) |
 | `GET` | `/api/companies/:id` | Single company with articles + summary |
+| `GET` | `/api/companies/:id/competitors` | List competitors with recent articles |
+| `POST` | `/api/companies/:id/competitors` | Add a competitor (requires `X-Refresh-Token`) |
+| `DELETE` | `/api/competitors/:id` | Remove a competitor (requires `X-Refresh-Token`) |
+| `POST` | `/api/competitors/:id/fetch` | Fetch news for one competitor |
+| `POST` | `/api/competitors/fetch-all` | Fetch news for all competitors |
+| `GET` | `/api/sectors` | List all sectors with briefs and counts |
+| `GET` | `/api/sectors/:sector` | Single sector brief with metadata |
+| `POST` | `/api/sectors/:sector/generate` | Generate brief for one sector |
+| `POST` | `/api/sectors/generate-all` | Generate briefs for all sectors |
 | `POST` | `/api/refresh` | Trigger full news fetch + summary pipeline |
 | `POST` | `/api/refresh/:companyId` | Refresh news + summary for a single company |
 | `POST` | `/api/chat` | Chat with portfolio AI + Exa live search (`{ message, companyId? }`) |
@@ -147,11 +165,11 @@ Webhook (id, url*, secret?, events, active)
 ## Testing
 
 ```bash
-npm test              # 77 tests across 13 files
+npm test              # 75 tests across 13 files
 npm run test:coverage # With coverage report
 ```
 
-**77 tests** covering API endpoints, services, adapters (Exa, NewsData, LLM), chat guardrails, and middleware with mocked DB/external APIs.
+**75 tests** covering API endpoints, services, adapters (Exa, NewsData, LLM), chat guardrails, and middleware with mocked DB/external APIs.
 
 ## AI Tools Used
 
@@ -166,17 +184,17 @@ npm run test:coverage # With coverage report
 ```
 src/
 ├── backend/
-│   ├── api/           # Hono route handlers (companies, refresh, chat, health, events, webhooks)
-│   ├── services/      # Business logic (news, summaries, portfolio, webhooks)
+│   ├── api/           # Hono route handlers (companies, competitors, sectors, refresh, chat, health, events, webhooks)
+│   ├── services/      # Business logic (news, summaries, competitors, sector-briefs, portfolio, webhooks)
 │   ├── adapters/      # External APIs (Exa, NewsData, LLM)
 │   ├── db/            # Prisma client
-│   ├── utils/         # Cache, rate limiting
-│   └── middleware/     # Rate limiter, security headers
+│   ├── utils/         # Cache, rate limiting, sleep, parseSummaryMeta
+│   └── middleware/     # Rate limiter, auth, security headers
 ├── frontend/
 │   ├── src/
-│   │   ├── components/  # React components (CompanyCard, NewsItem, ChatWidget, NotificationBell, etc.)
-│   │   ├── pages/       # Route pages (Index, Companies, CompanyDetail)
-│   │   ├── hooks/       # React Query hooks (useCompanies, useNotifications)
+│   │   ├── components/  # React components (CompanyCard, CompetitorPanel, SectorCard, NewsItem, ChatWidget, etc.)
+│   │   ├── pages/       # Route pages (Index, Companies, CompanyDetail, Sectors, SectorDetail)
+│   │   ├── hooks/       # React Query hooks (useCompanies, useCompetitors, useSectors, useNotifications)
 │   │   ├── lib/         # API client, utilities
 │   │   └── types/       # TypeScript interfaces
 │   └── vitest.config.ts

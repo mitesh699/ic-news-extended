@@ -7,6 +7,21 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─── News Source Registry ───
+// Canonical source metadata — shared across all article types
+model Source {
+  id        String  @id @default(cuid())
+  domain    String  @unique           // e.g. "techcrunch.com"
+  name      String                    // e.g. "TechCrunch"
+  logoUrl   String?                   // favicon or brand icon URL
+  category  String  @default("news")  // "news" | "blog" | "press" | "social" | "aggregator"
+  language  String  @default("en")
+  trustRank Int     @default(50)      // 0-100 editorial trust score
+
+  @@index([domain])
+}
+
+// ─── Portfolio Companies ───
 model Company {
   id          String    @id @default(cuid())
   name        String    @unique
@@ -22,38 +37,48 @@ model Company {
 
   articles    Article[]
   summaries   Summary[]
+  competitors Competitor[]
 
   @@index([name])
   @@index([sector])
 }
 
+// ─── Portfolio Articles ───
 model Article {
   id          String    @id @default(cuid())
   companyId   String
   title       String
   url         String
-  source      String?
-  summary     String?   // One-line article summary for hover preview
+  canonicalUrl String?             // og:url or canonical link (dedup across syndication)
+  source      String?              // hostname, e.g. "techcrunch.com"
+  sourceName  String?              // display name, e.g. "TechCrunch"
+  author      String?
+  imageUrl    String?              // og:image or first image
+  summary     String?              // AI-generated one-liner for hover preview
+  highlights  String?              // JSON: top sentences from Exa highlights API
   publishedAt DateTime?
   fetchedAt   DateTime  @default(now())
-  urlHash     String    @unique
-  sentiment   String?   // "positive" | "negative" | "neutral"
+  urlHash     String    @unique    // SHA-256 of url for dedup
+  sentiment   String?              // "positive" | "negative" | "neutral"
   isBreaking  Boolean   @default(false)
+  readingTimeMs Int?               // estimated reading time in ms
 
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@index([companyId, publishedAt(sort: Desc)])
   @@index([companyId, fetchedAt(sort: Desc)])
   @@index([urlHash])
+  @@index([source])
 }
 
+// ─── AI Summaries ───
 model Summary {
   id            String   @id @default(cuid())
   companyId     String
   summaryText   String
   promptVersion String   @default("v1")
   articleCount  Int
-  metadata      String?  // JSON: { keyThemes, outlook, actionItems }
+  metadata      String?  // JSON: { keyThemes, outlook, actionItems, confidence, signals }
   generatedAt   DateTime @default(now())
 
   company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -62,6 +87,64 @@ model Summary {
   @@index([generatedAt])
 }
 
+// ─── Competitive Intelligence ───
+model Competitor {
+  id          String    @id @default(cuid())
+  companyId   String
+  name        String
+  website     String?
+  logoUrl     String?
+  description String?
+  sector      String?
+  relevance   String    @default("direct") // "direct" | "indirect"
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  articles    CompetitorArticle[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model CompetitorArticle {
+  id            String    @id @default(cuid())
+  competitorId  String
+  title         String
+  url           String
+  canonicalUrl  String?
+  source        String?
+  sourceName    String?
+  author        String?
+  imageUrl      String?
+  summary       String?           // AI-generated one-liner
+  highlights    String?           // JSON: key sentences
+  publishedAt   DateTime?
+  fetchedAt     DateTime  @default(now())
+  urlHash       String    @unique
+  sentiment     String?           // "positive" | "negative" | "neutral"
+  signal        String?           // "funding" | "hiring" | "product" | "regulatory" | "M&A" | "risk"
+
+  competitor    Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@index([competitorId, fetchedAt(sort: Desc)])
+  @@index([urlHash])
+  @@index([signal])
+}
+
+// ─── Sector Intelligence ───
+model SectorBrief {
+  id          String   @id @default(cuid())
+  sector      String
+  briefText   String
+  metadata    String?  // JSON: { topSignals, trendDirection, competitorMoves, portfolioCount }
+  generatedAt DateTime @default(now())
+
+  @@index([sector, generatedAt(sort: Desc)])
+  @@index([generatedAt])
+}
+
+// ─── Webhooks ───
 model Webhook {
   id        String   @id @default(cuid())
   url       String   @unique

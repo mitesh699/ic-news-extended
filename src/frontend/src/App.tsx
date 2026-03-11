@@ -9,6 +9,8 @@ import { AppSidebar } from "@/components/AppSidebar";
 import Index from "./pages/Index";
 import Companies from "./pages/Companies";
 import CompanyDetail from "./pages/CompanyDetail";
+import Sectors from "./pages/Sectors";
+import SectorDetail from "./pages/SectorDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/companies" element={<Companies />} />
                   <Route path="/company/:id" element={<CompanyDetail />} />
+                  <Route path="/sectors" element={<Sectors />} />
+                  <Route path="/sectors/:sector" element={<SectorDetail />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>

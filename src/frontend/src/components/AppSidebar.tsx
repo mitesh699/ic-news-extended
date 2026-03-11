@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { LayoutDashboard, Building2, Bell, Mail, Check } from "lucide-react";
+import { LayoutDashboard, Building2, Activity, Bell, Mail, Check } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useCompanies } from "@/hooks/useCompanies";
 import {
@@ -73,6 +73,14 @@ export function AppSidebar() {
                   <NavLink to="/companies" className="flex items-center gap-3 px-5 py-2.5 text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors" activeClassName="text-sidebar-foreground bg-sidebar-accent font-semibold">
                     <Building2 className="h-3.5 w-3.5 shrink-0" />
                     {!collapsed && <span>Companies</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink to="/sectors" className="flex items-center gap-3 px-5 py-2.5 text-[12px] text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors" activeClassName="text-sidebar-foreground bg-sidebar-accent font-semibold">
+                    <Activity className="h-3.5 w-3.5 shrink-0" />
+                    {!collapsed && <span>Sectors</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

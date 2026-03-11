@@ -23,6 +23,8 @@ for (const key of required) {
 
 import health from './api/health'
 import companies from './api/companies'
+import competitorsApi from './api/competitors'
+import sectorsApi from './api/sectors'
 import refresh from './api/refresh'
 import chat from './api/chat'
 import webhooks from './api/webhooks'
@@ -30,6 +32,8 @@ import events, { broadcastSSE } from './api/events'
 import { rateLimiter } from './middleware/rate-limit'
 import { fetchNewsForAllCompanies } from './services/news'
 import { generateSummariesForAll } from './services/summaries'
+import { fetchNewsForAllCompetitors } from './services/competitors'
+import { generateAllSectorBriefs } from './services/sector-briefs'
 import { dispatchWebhooks } from './services/webhooks'
 
 const app = new Hono()
@@ -86,11 +90,14 @@ app.use('/api/chat', csrf({ origin: origins }))
 // Rate limiting
 app.use('/api/chat', rateLimiter({ windowMs: 60_000, max: 10 }))
 app.use('/api/companies', rateLimiter({ windowMs: 60_000, max: 60 }))
+app.use('/api/sectors', rateLimiter({ windowMs: 60_000, max: 30 }))
 app.use('/api/refresh', rateLimiter({ windowMs: 600_000, max: 2 }))
 
 // Routes
 app.route('/api/health', health)
 app.route('/api/companies', companies)
+app.route('/api/companies', competitorsApi)
+app.route('/api/sectors', sectorsApi)
 app.route('/api/refresh', refresh)
 app.route('/api/chat', chat)
 app.route('/api/webhooks', webhooks)
@@ -107,6 +114,13 @@ cron.schedule('0 */6 * * *', async () => {
     console.log(`[cron] Fetched ${newsResult.total} articles`)
     const summaryResult = await generateSummariesForAll()
     console.log(`[cron] Generated ${summaryResult.generated} summaries`)
+
+    // Competitive intelligence pipeline
+    const compResult = await fetchNewsForAllCompetitors()
+    console.log(`[cron] Competitor articles: ${compResult.total} from ${compResult.processed} competitors`)
+    const sectorResult = await generateAllSectorBriefs()
+    console.log(`[cron] Sector briefs: ${sectorResult.generated} generated, ${sectorResult.skipped} skipped`)
+
     if (newsResult.total > 0) {
       const payload = { totalNewArticles: newsResult.total, perCompany: newsResult.perCompany }
       dispatchWebhooks('articles.new', payload)

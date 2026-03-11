@@ -12,6 +12,7 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   isError?: boolean;
+  followUps?: string[];
 }
 
 function renderInlineMarkdown(text: string) {
@@ -97,12 +98,19 @@ export function ChatWidget() {
     setIsTyping(true);
 
     try {
-      const response = await sendChatMessage(text.trim());
+      // Build conversation history from prior messages (skip welcome, errors, and followUps)
+      const history = messages
+        .filter(m => m.id !== "welcome" && !m.isError)
+        .map(m => ({ role: m.role, content: m.content }))
+        .slice(-10);
+
+      const data = await sendChatMessage(text.trim(), undefined, history.length > 0 ? history : undefined);
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: response,
+        content: data.response,
         timestamp: new Date(),
+        followUps: data.followUps,
       }]);
     } catch {
       setMessages(prev => [...prev, {
@@ -217,6 +225,19 @@ export function ChatWidget() {
                         <RotateCw className="h-3 w-3" />
                         Retry
                       </button>
+                    )}
+                    {msg.followUps && msg.followUps.length > 0 && !isTyping && (
+                      <div className="flex flex-wrap gap-1 mt-2.5 pt-2 border-t border-border/20">
+                        {msg.followUps.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => sendMessage(s)}
+                            className="text-[8px] font-bold uppercase tracking-[0.08em] text-accent/70 hover:text-accent border border-accent/20 hover:border-accent/40 bg-transparent px-2 py-1 transition-colors"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </motion.div>
