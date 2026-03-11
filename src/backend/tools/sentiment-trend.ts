@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
-import { db } from '../../db/client'
+import { db } from '../db/client'
 
-interface WeekBucket {
+export interface WeekBucket {
   weekStart: string
   positive: number
   negative: number

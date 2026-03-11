@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
-import { db } from '../../db/client'
-import { parseSummaryMeta } from '../../utils/parseSummaryMeta'
+import { db } from '../db/client'
+import { parseSummaryMeta } from '../utils/parseSummaryMeta'
 
 export const listSectorCompanies = createTool({
   id: 'list_sector_companies',

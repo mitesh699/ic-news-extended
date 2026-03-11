@@ -1,6 +1,6 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
-import { db } from '../../db/client'
+import { db } from '../db/client'
 
 export const portfolioHealth = createTool({
   id: 'portfolio_health',

@@ -1,7 +1,7 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
-import { db } from '../../db/client'
-import { formatMetaContext } from '../../utils/parseSummaryMeta'
+import { db } from '../db/client'
+import { formatMetaContext } from '../utils/parseSummaryMeta'
 
 export const lookupCompany = createTool({
   id: 'lookup_company',
