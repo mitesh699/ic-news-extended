@@ -217,11 +217,23 @@ export async function filterRelevantArticles(
 
   const numbered = titles.map((t, i) => `${i + 1}. ${t.slice(0, 200)}`).join('\n')
 
-  const prompt = `Company: ${companyName} (${sector})
+  const prompt = `Company: "${companyName}" | Sector: ${sector}
 
-For each article title below, respond with a JSON array of booleans — true if the article is actually about or directly relevant to "${companyName}", false if it's about a different company/topic that just happened to appear in search results.
+Classify each article title as relevant (true) or irrelevant (false) to "${companyName}" specifically.
 
-Be strict: generic industry news that doesn't mention or directly impact ${companyName} should be false.
+RELEVANT (true):
+- Directly mentions or is about "${companyName}" by name
+- Covers an event that materially impacts "${companyName}" (funding, acquisition, lawsuit, product launch, partnership, leadership change, competitor move in their direct market)
+- Industry/sector news that specifically names or directly affects "${companyName}"
+
+IRRELEVANT (false):
+- About a different company that shares similar keywords or operates in the same sector
+- Generic industry/sector news that does not name or single out "${companyName}"
+- About a person, place, or concept that happens to share the name "${companyName}"
+- Listicles, roundups, or "top 10" articles where "${companyName}" is not the primary subject
+- News about a competitor unless it explicitly discusses impact on "${companyName}"
+
+When in doubt, mark false. Quality over quantity — we only want articles an investor tracking "${companyName}" would actually read.
 
 ${numbered}`
 
@@ -231,7 +243,7 @@ ${numbered}`
       max_completion_tokens: 200,
       reasoning_effort: 'low',
       messages: [
-        { role: 'developer', content: 'You are a relevance classifier. Respond ONLY with a JSON array of booleans. No explanation.' },
+        { role: 'developer', content: 'You are a strict relevance classifier for a VC portfolio tracker. Respond ONLY with a JSON array of booleans. No explanation, no markdown.' },
         { role: 'user', content: prompt },
       ],
     })
