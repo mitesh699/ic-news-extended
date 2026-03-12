@@ -47,16 +47,17 @@ export async function searchExa(query: string, opts: ExaSearchOptions = {}): Pro
   }
 }
 
-export async function fetchExaNews(query: string): Promise<FetchedArticle[]> {
+export async function fetchExaNews(query: string, daysBack = 30): Promise<FetchedArticle[]> {
   const exa = getExa()
   if (!exa) throw new Error('EXA_API_KEY not set')
   const cutoff = new Date(Date.now() - MAX_ARTICLE_AGE_MS)
 
-  const result = await exa.search(query, {
+  const result = await exa.searchAndContents(query, {
     type: 'auto',
     category: 'news',
     numResults: 10,
-    startPublishedDate: new Date(Date.now() - 7 * 86_400_000).toISOString().split('T')[0],
+    startPublishedDate: new Date(Date.now() - daysBack * 86_400_000).toISOString().split('T')[0],
+    highlights: { numSentences: 2, highlightsPerUrl: 1 },
   })
 
   return result.results
@@ -65,12 +66,16 @@ export async function fetchExaNews(query: string): Promise<FetchedArticle[]> {
     })
     .map((r) => {
       const pubDate = r.publishedDate ? new Date(r.publishedDate) : null
+      const highlight = (r as Record<string, unknown>).highlights
+      const summary = Array.isArray(highlight) && highlight.length > 0
+        ? String(highlight[0])
+        : undefined
       return {
         title: r.title || query,
         url: r.url,
         source: new URL(r.url).hostname.replace('www.', ''),
-        // Discard dates older than 6 months — Exa sometimes returns stale results
         publishedAt: pubDate && pubDate > cutoff ? pubDate : null,
+        summary,
       }
     })
 }

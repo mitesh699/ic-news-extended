@@ -26,7 +26,7 @@ describe('fetchExaNews', () => {
       ],
     })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -47,7 +47,7 @@ describe('fetchExaNews', () => {
       ],
     })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -62,7 +62,7 @@ describe('fetchExaNews', () => {
       ],
     })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -77,7 +77,7 @@ describe('fetchExaNews', () => {
       ],
     })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -88,7 +88,7 @@ describe('fetchExaNews', () => {
   it('returns empty array when results is empty', async () => {
     const mockSearch = vi.fn().mockResolvedValue({ results: [] })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -99,7 +99,7 @@ describe('fetchExaNews', () => {
   it('throws when EXA_API_KEY is not set', async () => {
     delete process.env.EXA_API_KEY
     vi.doMock('exa-js', () => ({
-      default: vi.fn().mockImplementation(() => ({ search: vi.fn() })),
+      default: vi.fn().mockImplementation(() => ({ searchAndContents: vi.fn() })),
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -109,7 +109,7 @@ describe('fetchExaNews', () => {
   it('passes correct search parameters to Exa client', async () => {
     const mockSearch = vi.fn().mockResolvedValue({ results: [] })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -126,7 +126,7 @@ describe('fetchExaNews', () => {
   it('propagates search errors to the caller', async () => {
     const mockSearch = vi.fn().mockRejectedValue(new Error('Exa API error'))
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')
@@ -141,7 +141,7 @@ describe('fetchExaNews', () => {
       ],
     })
     vi.doMock('exa-js', () => ({
-      default: function MockExa() { return { search: mockSearch } },
+      default: function MockExa() { return { searchAndContents: mockSearch } },
     }))
 
     const { fetchExaNews } = await import('../exa')

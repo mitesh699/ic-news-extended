@@ -20,12 +20,20 @@ export function parseKeywords(raw: string | null): string[] {
 }
 
 function buildSearchQueries(companyName: string, keywords: string[], sector: string): string[] {
-  const businessTerms = 'funding OR revenue OR partnership OR launch OR acquisition'
+  const queries: string[] = []
+
+  // Primary: company name with business context
+  queries.push(`"${companyName}" ${sector} company news`)
+
+  // If keywords exist, add keyword-based queries
   if (keywords.length > 0) {
-    return keywords.slice(0, 2).map(kw => `${kw} ${businessTerms}`)
+    queries.push(...keywords.slice(0, 2).map(kw => `${kw} news`))
   }
-  // Quote company name to prevent partial matches on common words
-  return [`"${companyName}" ${sector} company news ${businessTerms}`]
+
+  // Fallback: broader search without sector constraint
+  queries.push(`"${companyName}" startup`)
+
+  return queries
 }
 
 export function isRelevant(article: FetchedArticle, companyName: string, keywords: string[]): boolean {
@@ -155,11 +163,11 @@ async function fetchArticlesWithFallback(
   const queries = buildSearchQueries(companyName, keywords, sector)
   let allArticles: FetchedArticle[] = []
 
-  // Primary: Exa (fast, neural search with news category)
+  // Primary: Exa (fast, neural search with highlights)
   if (process.env.EXA_API_KEY) {
     for (const query of queries) {
       try {
-        const articles = await fetchExaNews(query)
+        const articles = await fetchExaNews(query, 30)
         allArticles.push(...articles)
         if (allArticles.length >= 5) break
       } catch (err) {
@@ -208,7 +216,7 @@ export async function fetchNewsForCompany(companyId: string, companyName: string
       title: article.title,
       url: article.url,
       source: article.source,
-      summary: sentiment.summary,
+      summary: sentiment.summary || article.summary || null,
       publishedAt: article.publishedAt,
       urlHash: hashUrl(article.url),
       sentiment: sentiment.sentiment,

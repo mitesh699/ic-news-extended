@@ -18,6 +18,7 @@ export interface FetchedArticle {
   url: string
   source: string
   publishedAt: Date | null
+  summary?: string
 }
 
 export async function fetchNewsData(companyName: string): Promise<FetchedArticle[]> {
