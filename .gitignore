@@ -4,6 +4,7 @@
 .env.production
 .claude/CLAUDE.local.md
 .claude/settings.local.json
+.claude/agent-memory/
 PROGRESS.md
 PRD.md
 TDD.md

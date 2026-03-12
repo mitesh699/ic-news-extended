@@ -15,12 +15,20 @@ AI-powered portfolio intelligence dashboard for Initialized Capital. Aggregates 
 │  Vite + SWC │     │  /api/*         │     │  (Prisma 7)  │
 └─────────────┘     └────────┬────────┘     └──────────────┘
                              │
+                    ┌────────┼─────────────┐
+                    │        │             │
+              ┌─────▼─────┐  │  ┌──────────▼──────────┐
+              │  Exa.ai   │  │  │  Mastra Agent        │
+              │  (news +  │  │  │  Sonnet 4.6 → GPT-5.4│
+              │   MCP)    │  │  │  9 tools + Exa MCP   │
+              └───────────┘  │  └─────────────────────┘
+                             │
                     ┌────────┼────────┐
                     │        │        │
               ┌─────▼─────┐  │  ┌────▼───────┐
-              │  Exa.ai   │  │  │Claude Haiku│
-              │  (news)   │  │  │+ GPT-5-mini│
-              └───────────┘  │  │(summaries) │
+              │Claude Haiku│  │  │ GPT-5-mini │
+              │(summaries) │  │  │(relevance  │
+              └───────────┘  │  │ + fallback)│
                              │  └────────────┘
                       ┌──────▼──────┐
                       │ NewsData.io │
@@ -28,17 +36,20 @@ AI-powered portfolio intelligence dashboard for Initialized Capital. Aggregates 
                       └─────────────┘
 ```
 
-**Backend:** Hono.js, Prisma 7, PostgreSQL, TypeScript
-**Frontend:** React , Vite, shadcn/ui, Tailwind CSS, TanStack Query, Framer Motion
-**AI:** Claude Haiku (primary) with GPT-5-mini fallback for summaries + chat with Exa tool use
-**Data:** Exa.ai neural search (primary) + NewsData.io (fallback)
+**Backend:** Hono.js, Prisma 7, PostgreSQL, TypeScript, Mastra Agent Framework
+**Frontend:** React 18, Vite, shadcn/ui, Tailwind CSS, TanStack Query, Framer Motion
+**AI Agent:** Mastra-powered portfolio intelligence agent (Sonnet 4.6 primary → GPT-5.4 fallback) with 9 local tools + Exa MCP for live web search
+**AI Pipeline:** Claude Haiku (summaries/sentiment), GPT-5-mini (relevance filtering + fallback)
+**Data:** Exa.ai neural search with `searchAndContents` + highlights (primary) + NewsData.io (fallback)
 
 ## Features
 
 - **Company Grid** — 175 portfolio companies with sentiment sparklines, signal badges, and sector-based filtering
-- **News Pipeline** — Exa.ai neural search with targeted keyword queries (company name + sector/product context, e.g. "Cruise autonomous vehicles" not "Cruise"), parallel batch processing, SHA-256 dedup, 6-month article age filter to discard stale results
+- **News Pipeline** — Exa.ai `searchAndContents` with highlights (6-month window), parallel batch processing, SHA-256 dedup, GPT-5-mini relevance filter to reject off-topic results
 - **AI Portfolio Briefs** — Claude Haiku generates sector-specific investment briefs (max 100 words) with outlook, key themes, and action items
-- **Chat Widget** — Conversational portfolio intelligence with Exa live search tool use — Claude can fetch real-time news mid-conversation
+- **Mastra Agent** — Portfolio intelligence agent with 9 local tools (company lookup, sector listing, portfolio health, sentiment trends, company comparison, newsletter drafting, chart generation, report creation, email sending) + Exa MCP for live web search + Slack MCP (optional)
+- **Model Fallback** — Agent uses Claude Sonnet 4.6 (primary) → GPT-5.4 (fallback) with automatic failover
+- **Chat Widget** — Conversational portfolio intelligence with markdown rendering (headers, tables, lists, code blocks via react-markdown + remark-gfm), follow-up suggestions based on tool usage
 - **Market Signals** — Positive/Negative/Neutral/Breaking article classification with breaking news ticker
 - **Filters** — By sector (8 real portfolio categories: Climate, Consumer, Crypto, Enterprise, Fintech, Frontier Tech, Healthcare, Real Estate), date range (Today/Week/Month/Year), and sentiment signal
 - **Pagination** — Load More pattern (20 articles per page) for the news feed
@@ -72,13 +83,13 @@ AI-powered portfolio intelligence dashboard for Initialized Capital. Aggregates 
 - **PostgreSQL 15+** — local install or Docker (`docker run -e POSTGRES_DB=ic_news -e POSTGRES_PASSWORD=pass -p 5432:5432 postgres:16`)
 - **Anthropic API key** — required for summaries and chat ([console.anthropic.com](https://console.anthropic.com))
 - **Exa.ai API key** — required for news fetching ([dashboard.exa.ai](https://dashboard.exa.ai))
-- **OpenAI API key** _(optional)_ — fallback LLM for summaries
+- **OpenAI API key** — required for GPT-5-mini relevance filter + fallback summaries
 - **NewsData.io API key** _(optional)_ — fallback news source
 
 ### Install & configure
 
 ```bash
-git clone https://github.com/mitesh699/ic-news.git && cd ic-news
+git clone https://github.com/mitesh699/ic-news-extended.git && cd ic-news-extended
 npm install                          # backend dependencies
 cd src/frontend && npm install && cd ../..  # frontend dependencies
 cp .env.example .env                 # copy env template
@@ -89,7 +100,7 @@ Edit `.env` with your values:
 DATABASE_URL=postgresql://user:password@localhost:5432/ic_news
 ANTHROPIC_API_KEY=sk-ant-...         # required
 EXA_API_KEY=...                      # required
-OPENAI_API_KEY=sk-...                # optional fallback
+OPENAI_API_KEY=sk-...                # required (relevance filter + fallback)
 NEWSDATA_API_KEY=pub_...             # optional fallback
 REFRESH_SECRET=any-secret-string     # protects the refresh endpoint
 FRONTEND_URL=http://localhost:8080   # for CORS
@@ -165,19 +176,19 @@ Webhook (id, url*, secret?, events, active)
 ## Testing
 
 ```bash
-npm test              # 75 tests across 13 files
+npm test              # 79 tests across 13 files
 npm run test:coverage # With coverage report
 ```
 
-**75 tests** covering API endpoints, services, adapters (Exa, NewsData, LLM), chat guardrails, and middleware with mocked DB/external APIs.
+**79 tests** covering API endpoints, services, adapters (Exa, NewsData, LLM), chat guardrails, relevance filtering, and middleware with mocked DB/external APIs.
 
 ## AI Tools Used
 
 - **Claude Code** — Primary development assistant for backend, frontend, tests, and deployment
 - **Lovable** — Initial frontend scaffolding and UI design
-- **Claude Haiku** — Runtime AI for summaries, sentiment, and chat
-- **GPT-5-mini** — Fallback LLM for summary generation
-- **Exa.ai** — Neural news search (pipeline + chat tool use)
+- **Claude Haiku** — Runtime AI for summaries, sentiment classification, and chat
+- **GPT-5-mini** — Article relevance filter (strict prompt-based classifier) + fallback summary generation
+- **Exa.ai** — Neural news search with `searchAndContents` + highlights (pipeline + chat tool use)
 
 ## Project Structure
 
