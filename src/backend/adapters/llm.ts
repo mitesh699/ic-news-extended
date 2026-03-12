@@ -206,6 +206,49 @@ export async function generateSummary(input: SummaryInput): Promise<StructuredSu
   return null
 }
 
+// ---------- LLM relevance filter ----------
+
+export async function filterRelevantArticles(
+  titles: string[],
+  companyName: string,
+  sector: string,
+): Promise<boolean[]> {
+  if (titles.length === 0) return []
+
+  const numbered = titles.map((t, i) => `${i + 1}. ${t.slice(0, 200)}`).join('\n')
+
+  const prompt = `Company: ${companyName} (${sector})
+
+For each article title below, respond with a JSON array of booleans — true if the article is actually about or directly relevant to "${companyName}", false if it's about a different company/topic that just happened to appear in search results.
+
+Be strict: generic industry news that doesn't mention or directly impact ${companyName} should be false.
+
+${numbered}`
+
+  try {
+    const response = await getOpenai().chat.completions.create({
+      model: 'gpt-5-mini',
+      max_completion_tokens: 200,
+      reasoning_effort: 'low',
+      messages: [
+        { role: 'developer', content: 'You are a relevance classifier. Respond ONLY with a JSON array of booleans. No explanation.' },
+        { role: 'user', content: prompt },
+      ],
+    })
+
+    const text = response.choices[0]?.message?.content?.trim() || ''
+    const parsed = JSON.parse(stripMarkdownFences(text))
+    if (Array.isArray(parsed) && parsed.length === titles.length) {
+      return parsed.map((v: unknown) => Boolean(v))
+    }
+  } catch (err) {
+    console.warn('Relevance filter error:', err instanceof Error ? err.message : String(err))
+  }
+
+  // Fallback: accept all
+  return titles.map(() => true)
+}
+
 // ---------- Sentiment classification ----------
 
 export interface SentimentResult {

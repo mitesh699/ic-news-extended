@@ -1,7 +1,7 @@
 import { db } from '../db/client'
 import { fetchNewsData, type FetchedArticle } from '../adapters/newsdata'
 import { fetchExaNews } from '../adapters/exa'
-import { classifySentiment } from '../adapters/llm'
+import { classifySentiment, filterRelevantArticles } from '../adapters/llm'
 import { createHash } from 'crypto'
 import { sleep } from '../utils/sleep'
 
@@ -205,9 +205,20 @@ async function fetchArticlesWithFallback(
 }
 
 export async function fetchNewsForCompany(companyId: string, companyName: string, keywords: string[] = [], sector: string = 'Technology'): Promise<number> {
-  const articles: FetchedArticle[] = await fetchArticlesWithFallback(companyName, keywords, sector)
+  let articles: FetchedArticle[] = await fetchArticlesWithFallback(companyName, keywords, sector)
 
   if (articles.length === 0) return 0
+
+  // LLM relevance filter — GPT-5-mini checks if articles are actually about this company
+  if (process.env.OPENAI_API_KEY) {
+    const relevance = await filterRelevantArticles(articles.map((a) => a.title), companyName, sector)
+    const before = articles.length
+    articles = articles.filter((_, i) => relevance[i])
+    if (articles.length < before) {
+      console.log(`  ${companyName}: filtered ${before - articles.length}/${before} irrelevant articles`)
+    }
+    if (articles.length === 0) return 0
+  }
 
   // Batch classify sentiment with company context
   const sentimentResults = await classifySentiment(articles.map((a) => a.title), companyName, sector)
