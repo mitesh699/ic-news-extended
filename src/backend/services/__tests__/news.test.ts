@@ -93,15 +93,15 @@ describe('fetchNewsForCompany', () => {
     expect(count).toBe(0)
   })
 
-  it('filters out irrelevant articles', async () => {
+  it('filters out blocklisted articles', async () => {
     vi.mocked(fetchNewsData).mockResolvedValue([
       { title: 'Coinbase launches new feature', url: 'https://example.com/1', source: 'X', publishedAt: new Date() },
-      { title: 'Maple Leafs win Sunday game', url: 'https://example.com/2', source: 'Y', publishedAt: new Date() },
+      { title: 'Jobs at Coinbase', url: 'https://greenhouse.io/coinbase', source: 'Y', publishedAt: new Date() },
     ])
     vi.mocked(db.company.update).mockResolvedValue({} as never)
 
     const count = await fetchNewsForCompany('c1', 'Coinbase')
-    // Only "Coinbase launches new feature" is relevant
+    // Only the news article passes — greenhouse.io job board URL is blocklisted
     const call = vi.mocked(db.article.createMany).mock.calls[0][0] as { data: Record<string, unknown>[] }
     expect(call.data).toHaveLength(1)
   })

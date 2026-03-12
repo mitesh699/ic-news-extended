@@ -131,6 +131,8 @@ export function isRelevant(article: FetchedArticle, companyName: string, keyword
     return false
   }
 
+  // Trust Exa's neural search relevance — if it passed the blocklist above, it's likely relevant.
+  // Still boost confidence if company name or keywords appear explicitly.
   const nameLower = companyName.toLowerCase()
   if (title.includes(nameLower) || url.includes(nameLower.replace(/\s+/g, ''))) {
     return true
@@ -152,7 +154,8 @@ export function isRelevant(article: FetchedArticle, companyName: string, keyword
     }
   }
 
-  return false
+  // Exa neural search already filters for relevance — accept articles that passed blocklist
+  return true
 }
 
 async function fetchArticlesWithFallback(
@@ -167,7 +170,7 @@ async function fetchArticlesWithFallback(
   if (process.env.EXA_API_KEY) {
     for (const query of queries) {
       try {
-        const articles = await fetchExaNews(query, 30)
+        const articles = await fetchExaNews(query)
         allArticles.push(...articles)
         if (allArticles.length >= 5) break
       } catch (err) {

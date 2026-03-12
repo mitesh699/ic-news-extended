@@ -47,7 +47,7 @@ export async function searchExa(query: string, opts: ExaSearchOptions = {}): Pro
   }
 }
 
-export async function fetchExaNews(query: string, daysBack = 30): Promise<FetchedArticle[]> {
+export async function fetchExaNews(query: string, daysBack = 180): Promise<FetchedArticle[]> {
   const exa = getExa()
   if (!exa) throw new Error('EXA_API_KEY not set')
   const cutoff = new Date(Date.now() - MAX_ARTICLE_AGE_MS)
