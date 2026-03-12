@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { formatDistanceToNow, isToday, isThisWeek, isThisMonth, isThisYear, format, differenceInDays } from "date-fns";
 import { Zap, ArrowUpRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,6 +26,7 @@ function SignalBar({ signal }: { signal?: string }) {
 }
 
 export function NewsItem({ article, companyName, companyId, variant = "compact" }: NewsItemProps) {
+  const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
   const displayDate = new Date(article.publishedAt ?? article.fetchedAt);
   const timeAgo = formatDistanceToNow(displayDate, { addSuffix: false });
@@ -78,10 +79,12 @@ export function NewsItem({ article, companyName, companyId, variant = "compact" 
             <span className="text-[9px] text-muted-foreground/40 mono uppercase tracking-[0.08em]">{timeAgo} ago</span>
             <span className="text-muted-foreground/20 text-[8px]">—</span>
             {companyId ? (
-              <Link to={`/company/${companyId}`} onClick={(e) => e.stopPropagation()}
-                className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.08em] hover:text-accent transition-colors">
+              <span role="link" tabIndex={0}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/company/${companyId}`); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); navigate(`/company/${companyId}`); } }}
+                className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.08em] hover:text-accent transition-colors cursor-pointer">
                 {companyName}
-              </Link>
+              </span>
             ) : (
               <span className="text-[9px] text-muted-foreground/40 uppercase tracking-[0.08em]">{companyName}</span>
             )}

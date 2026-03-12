@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { MessageCircle, X, Send, Bot, AlertCircle, RotateCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { sendChatMessage } from "@/lib/api";
@@ -15,36 +17,70 @@ interface ChatMessage {
   followUps?: string[];
 }
 
-function renderInlineMarkdown(text: string) {
-  // Split on bold (**text**), links [text](url), and inline code (`text`)
-  const parts = text.split(/(\*\*.*?\*\*|\[.*?\]\(.*?\)|`.*?`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i} className="font-bold">{part.slice(2, -2)}</strong>;
-    }
-    const linkMatch = part.match(/^\[(.*?)\]\((.*?)\)$/);
-    if (linkMatch) {
-      return (
-        <a key={i} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
-          className="text-accent underline underline-offset-2 hover:text-accent/80 transition-colors">
-          {linkMatch[1]}
-        </a>
-      );
-    }
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={i} className="text-[11px] bg-foreground/[0.06] px-1 py-0.5 rounded">{part.slice(1, -1)}</code>;
-    }
-    // Also detect bare URLs
-    return <span key={i}>{part.split(/(https?:\/\/[^\s]+)/g).map((seg, j) =>
-      seg.match(/^https?:\/\//) ? (
-        <a key={j} href={seg} target="_blank" rel="noopener noreferrer"
-          className="text-accent underline underline-offset-2 hover:text-accent/80 transition-colors break-all">
-          {new URL(seg).hostname.replace("www.", "")}
-        </a>
-      ) : seg
-    )}</span>;
-  });
-}
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 className="text-[15px] font-bold tracking-[-0.02em] text-foreground mt-3 mb-1.5 first:mt-0">{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 className="text-[14px] font-bold tracking-[-0.01em] text-foreground mt-3 mb-1 first:mt-0">{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 className="text-[13px] font-bold text-foreground/90 mt-2 mb-0.5 first:mt-0">{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="mt-1.5 first:mt-0 leading-[1.6]">{children}</p>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-bold text-foreground">{children}</strong>
+  ),
+  em: ({ children }: { children?: React.ReactNode }) => (
+    <em className="italic text-foreground/80">{children}</em>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      className="text-accent underline underline-offset-2 hover:text-accent/80 transition-colors break-all">
+      {children}
+    </a>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code className="text-[11px] bg-foreground/[0.06] px-1 py-0.5 rounded font-mono">{children}</code>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="mt-1 space-y-0.5 pl-0">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="mt-1 space-y-0.5 pl-4 list-decimal">{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li className="text-[13px] leading-[1.55] pl-1 before:content-['•'] before:mr-1.5 before:text-muted-foreground/40 before:text-[10px]">{children}</li>
+  ),
+  hr: () => (
+    <hr className="my-2.5 border-border/30" />
+  ),
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="overflow-x-auto mt-2 mb-1 -mx-1">
+      <table className="w-full text-[11px] border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }: { children?: React.ReactNode }) => (
+    <thead className="border-b border-border/40">{children}</thead>
+  ),
+  tbody: ({ children }: { children?: React.ReactNode }) => (
+    <tbody className="divide-y divide-border/20">{children}</tbody>
+  ),
+  tr: ({ children }: { children?: React.ReactNode }) => (
+    <tr>{children}</tr>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="text-left font-bold text-foreground/80 px-2 py-1.5 text-[10px] uppercase tracking-[0.08em]">{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="px-2 py-1.5 text-foreground/70">{children}</td>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote className="border-l-2 border-accent/40 pl-3 my-1.5 text-foreground/60 italic">{children}</blockquote>
+  ),
+} as Record<string, React.ComponentType<Record<string, unknown>>>
 
 export function ChatWidget() {
   const { data: companies } = useCompanies();
@@ -205,12 +241,13 @@ export function ChatWidget() {
                           : "chat-bubble-ai border border-border/30"
                     )}
                   >
-                    {msg.content.split("\n").map((line, i) => (
-                      <p key={i} className={cn(i > 0 && "mt-1.5", line.startsWith("- ") && "pl-3", msg.isError && "text-destructive")}>
-                        {line.startsWith("- ") ? "• " : ""}
-                        {renderInlineMarkdown(line.replace(/^- /, ""))}
-                      </p>
-                    ))}
+                    {msg.role === "assistant" && !msg.isError ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                        {msg.content}
+                      </ReactMarkdown>
+                    ) : (
+                      <p className={cn(msg.isError && "text-destructive")}>{msg.content}</p>
+                    )}
                     {msg.isError && (
                       <button
                         onClick={() => {
