@@ -9,7 +9,8 @@ function getClient(): MCPClient | null {
   if (mcpInstance) return mcpInstance
   if (!process.env.SLACK_BOT_TOKEN) return null
 
-  const serverPath = path.resolve(__dirname, 'slack-server.ts')
+  const ext = __filename.endsWith('.ts') ? '.ts' : '.js'
+  const serverPath = path.resolve(__dirname, `slack-server${ext}`)
 
   mcpInstance = new MCPClient({
     id: 'slack-mcp',

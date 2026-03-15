@@ -5,7 +5,7 @@ import { generateSummariesForAll } from '../services/summaries'
 import { fetchNewsForAllCompetitors } from '../services/competitors'
 import { generateAllSectorBriefs } from '../services/sector-briefs'
 import { sendDailySlackDigest } from '../services/slack-digest'
-import { sendWeeklyNewsletter } from '../services/newsletter'
+import { sendWeeklyNewsletter, sendDailyDigestEmail } from '../services/newsletter'
 import { dispatchWebhooks } from '../services/webhooks'
 import { broadcastSSE } from '../api/events'
 
@@ -15,6 +15,7 @@ type JobName =
   | 'refresh-competitors'
   | 'generate-briefs'
   | 'send-slack-digest'
+  | 'send-daily-digest'
   | 'send-newsletter'
 
 interface JobData {
@@ -53,6 +54,11 @@ async function processJob(job: Job<JobData>): Promise<void> {
     case 'send-slack-digest': {
       const result = await sendDailySlackDigest()
       console.log(`[bullmq] Slack digest: ${result.sent ? 'sent' : result.error}`)
+      break
+    }
+    case 'send-daily-digest': {
+      const result = await sendDailyDigestEmail()
+      console.log(`[bullmq] Daily digest: sent to ${result.sent} subscribers`)
       break
     }
     case 'send-newsletter': {

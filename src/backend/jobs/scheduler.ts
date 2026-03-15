@@ -14,6 +14,7 @@ const SCHEDULES: SchedulerEntry[] = [
   { id: 'refresh-competitors', pattern: '20 */6 * * *', jobData: { type: 'refresh-competitors' } },
   { id: 'generate-briefs', pattern: '30 */6 * * *', jobData: { type: 'generate-briefs' } },
   { id: 'send-slack-digest', pattern: '0 9 * * *', tz: 'America/New_York', jobData: { type: 'send-slack-digest' } },
+  { id: 'send-daily-digest', pattern: '5 9 * * *', tz: 'America/New_York', jobData: { type: 'send-daily-digest' } },
   { id: 'send-newsletter', pattern: '0 8 * * 1', tz: 'America/New_York', jobData: { type: 'send-newsletter' } },
 ]
 

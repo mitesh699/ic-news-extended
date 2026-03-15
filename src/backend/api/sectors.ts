@@ -15,6 +15,16 @@ sectors.get('/', async (c) => {
   return c.json(briefs)
 })
 
+// POST /api/sectors/generate-all — MUST come before /:sector routes
+sectors.post('/generate-all', async (c) => {
+  if (!requireRefreshToken(c)) {
+    return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
+  }
+
+  const result = await generateAllSectorBriefs()
+  return c.json(result)
+})
+
 // GET /api/sectors/:sector — single sector brief
 sectors.get('/:sector', async (c) => {
   const sector = decodeURIComponent(c.req.param('sector'))
@@ -26,7 +36,7 @@ sectors.get('/:sector', async (c) => {
     sector: brief.sector,
     brief: brief.briefText,
     metadata: brief.metadata ? JSON.parse(brief.metadata) : null,
-    generatedAt: brief.generatedAt.toISOString(),
+    generatedAt: brief.generatedAt?.toISOString() ?? null,
   })
 })
 
@@ -42,16 +52,6 @@ sectors.post('/:sector/generate', async (c) => {
     return c.json({ error: 'No data available for sector brief', code: 'NO_DATA' }, 422)
   }
   return c.json({ generated: true, sector })
-})
-
-// POST /api/sectors/generate-all — generate briefs for all sectors
-sectors.post('/generate-all', async (c) => {
-  if (!requireRefreshToken(c)) {
-    return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401)
-  }
-
-  const result = await generateAllSectorBriefs()
-  return c.json(result)
 })
 
 export default sectors

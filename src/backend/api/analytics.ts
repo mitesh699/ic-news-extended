@@ -39,8 +39,7 @@ app.get('/signals', async (c) => {
       const meta = JSON.parse(s.metadata) as { signals?: string[] }
       if (Array.isArray(meta.signals)) {
         for (const sig of meta.signals) {
-          const key = sig.toLowerCase()
-          if (key in counts) counts[key]++
+          if (sig in counts) counts[sig]++
         }
       }
     } catch { /* skip malformed metadata */ }
