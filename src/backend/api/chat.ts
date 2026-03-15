@@ -413,7 +413,7 @@ chat.post('/', async (c) => {
     if (agentMode) {
       // Agent mode: Mastra agent with tools + model fallback
       const messages: CoreMessage[] = [...historyMessages, { role: 'user', content: userContent }]
-      const result = await portfolioAgent.generate(messages, { maxSteps: 5 })
+      const result = await portfolioAgent.generate(messages, { maxSteps: 8 })
       const text = await result.text
 
       if (!text) {
@@ -510,7 +510,7 @@ chat.post('/stream', async (c) => {
     let eventId = 0
 
     try {
-      const result = await portfolioAgent.stream(messages, { maxSteps: 5 })
+      const result = await portfolioAgent.stream(messages, { maxSteps: 8 })
 
       for await (const chunk of result.fullStream) {
         const payload = (chunk as Record<string, unknown>).payload as Record<string, unknown> | undefined ?? chunk as Record<string, unknown>
