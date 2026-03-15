@@ -13,6 +13,10 @@ interface PDFOptions {
 }
 
 const BLUE = '#1e40af'
+const GRAY = '#475569'
+const DARK = '#0f172a'
+const LIGHT_GRAY = '#94a3b8'
+const RULE_COLOR = '#e2e8f0'
 
 export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Buffer> {
   const daysBack = options.daysBack ?? 7
@@ -22,7 +26,7 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   const [articles, summaries, companies] = await Promise.all([
     db.article.findMany({
       where: { fetchedAt: { gte: since } },
-      orderBy: { publishedAt: 'desc' },
+      orderBy: { fetchedAt: 'desc' },
       include: { company: { select: { name: true, sector: true } } },
     }),
     db.summary.findMany({
@@ -35,7 +39,7 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
     }),
   ])
 
-  // Aggregate data for charts
+  // ── Aggregate data ──
   const sentimentCounts = { positive: 0, negative: 0, neutral: 0 }
   const sectorCounts = new Map<string, number>()
   const signalCounts: Record<string, number> = {}
@@ -48,7 +52,8 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
     const sector = a.company.sector || 'Other'
     sectorCounts.set(sector, (sectorCounts.get(sector) ?? 0) + 1)
 
-    const dateKey = (a.publishedAt ?? a.fetchedAt).toISOString().slice(0, 10)
+    // Fix #3: use fetchedAt for trend x-axis (not publishedAt which can be months old)
+    const dateKey = a.fetchedAt.toISOString().slice(0, 10)
     if (!dailySentiment.has(dateKey)) {
       dailySentiment.set(dateKey, { positive: 0, negative: 0, neutral: 0 })
     }
@@ -65,7 +70,31 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
     }
   }
 
-  // Render charts in parallel
+  // ── Fix #1: Deduplicate top signals by company ──
+  const signalArticles = articles.filter((a) => a.isBreaking || a.sentiment === 'negative')
+  const seenCompanies = new Set<string>()
+  const dedupedSignals: typeof signalArticles = []
+  for (const a of signalArticles) {
+    if (seenCompanies.has(a.company.name)) continue
+    seenCompanies.add(a.company.name)
+    dedupedSignals.push(a)
+  }
+  const topSignals = dedupedSignals.slice(0, 25)
+
+  // ── Fix #2: Filter company briefs to only material news ──
+  const summaryByCompany = new Map<string, (typeof summaries)[0]>()
+  for (const s of summaries) {
+    if (summaryByCompany.has(s.companyId)) continue
+    const meta = parseJsonResponse<{ outlook?: string }>(s.metadata ?? '{}', {})
+    const outlook = meta.outlook?.toLowerCase() ?? 'stable'
+    // Skip stable companies with no material developments
+    if (outlook === 'stable' && /no material|limited relevant|no substantive|no updates/i.test(s.summaryText)) {
+      continue
+    }
+    summaryByCompany.set(s.companyId, s)
+  }
+
+  // ── Render charts ──
   const trendData = [...dailySentiment.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, counts]) => ({ date: date.slice(5), ...counts }))
@@ -79,18 +108,26 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
     trendData.length > 1 ? renderSentimentTrend(trendData) : null,
   ])
 
-  // Build PDF
-  const topSignals = articles
-    .filter((a) => a.isBreaking || a.sentiment === 'negative')
-    .slice(0, 20)
+  // ── Build executive summary bullets ──
+  const breakingCount = articles.filter(a => a.isBreaking).length
+  const negativeCount = sentimentCounts.negative
+  const positiveCount = sentimentCounts.positive
+  const topSector = [...sectorCounts.entries()].sort((a, b) => b[1] - a[1])[0]
+  const topSignalType = Object.entries(signalCounts).sort((a, b) => b[1] - a[1])[0]
 
-  const summaryByCompany = new Map<string, (typeof summaries)[0]>()
-  for (const s of summaries) {
-    if (!summaryByCompany.has(s.companyId)) {
-      summaryByCompany.set(s.companyId, s)
-    }
-  }
+  const exitCompanies = topSignals.filter(a =>
+    /acqui|merger|exit|bought|ipo/i.test(a.title)
+  ).map(a => a.company.name)
 
+  const fundingCompanies = topSignals.filter(a =>
+    /raise|series|seed|funding|round/i.test(a.title)
+  ).map(a => a.company.name)
+
+  const riskCompanies = topSignals.filter(a =>
+    a.sentiment === 'negative'
+  ).map(a => a.company.name)
+
+  // ── Build PDF ──
   const doc = new PDFDocument({ size: 'A4', margin: 50 })
   const chunks: Buffer[] = []
   doc.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -102,100 +139,134 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
 
   const dateStr = new Date().toISOString().slice(0, 10)
 
-  // ── Header ──
-  doc.fontSize(22).font('Helvetica-Bold').text('Initialized Capital', { align: 'center' })
-  doc.fontSize(14).font('Helvetica').text('Portfolio Intelligence Report', { align: 'center' })
-  doc.fontSize(10).fillColor('#64748b').text(
+  function drawRule() {
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(RULE_COLOR).stroke()
+    doc.moveDown(0.5)
+  }
+
+  function sectionHeader(title: string) {
+    doc.fontSize(16).fillColor(BLUE).font('Helvetica-Bold').text(title)
+    drawRule()
+  }
+
+  // ══════════════════════════════════════════
+  // PAGE 1: Header + Charts
+  // ══════════════════════════════════════════
+  doc.fontSize(22).font('Helvetica-Bold').fillColor(DARK).text('Initialized Capital', { align: 'center' })
+  doc.fontSize(14).font('Helvetica').fillColor(GRAY).text('Portfolio Intelligence Report', { align: 'center' })
+  doc.fontSize(10).fillColor(LIGHT_GRAY).text(
     `Generated ${dateStr} | Last ${daysBack} days | ${articles.length} articles | ${companies.length} companies`,
     { align: 'center' }
   )
   doc.moveDown(1.5)
 
-  // ── Charts Page ──
-  doc.fontSize(16).fillColor(BLUE).font('Helvetica-Bold').text('Portfolio Overview')
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e2e8f0').stroke()
-  doc.moveDown(0.5)
+  sectionHeader('Portfolio Overview')
 
-  // Sentiment pie + sector bar side by side
-  if (sentimentPng) {
-    doc.image(sentimentPng, 50, doc.y, { width: 240 })
-  }
-  if (sectorPng) {
-    doc.image(sectorPng, 305, doc.y, { width: 240 })
-  }
+  if (sentimentPng) doc.image(sentimentPng, 50, doc.y, { width: 240 })
+  if (sectorPng) doc.image(sectorPng, 305, doc.y, { width: 240 })
   doc.y += 200
   doc.moveDown(1)
 
-  // Signal breakdown + trend
-  if (signalPng) {
-    doc.image(signalPng, 50, doc.y, { width: 240 })
-  }
-  if (trendPng) {
-    doc.image(trendPng, 305, doc.y, { width: 240 })
-  }
+  if (signalPng) doc.image(signalPng, 50, doc.y, { width: 240 })
+  if (trendPng) doc.image(trendPng, 305, doc.y, { width: 240 })
   if (signalPng || trendPng) {
     doc.y += 200
     doc.moveDown(1)
   }
 
-  // ── Top Signals ──
+  // ══════════════════════════════════════════
+  // PAGE 2: Executive Summary (Fix #4)
+  // ══════════════════════════════════════════
   doc.addPage()
-  doc.fontSize(16).fillColor(BLUE).font('Helvetica-Bold').text('Top Signals')
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e2e8f0').stroke()
-  doc.moveDown(0.5)
+  sectionHeader('Executive Summary')
+
+  doc.fontSize(12).fillColor(GRAY).font('Helvetica')
+
+  const bullets: string[] = [
+    `${articles.length} articles tracked across ${companies.length} companies this period. ${breakingCount} breaking signals, ${positiveCount} positive, ${negativeCount} negative.`,
+  ]
+
+  if (exitCompanies.length > 0) {
+    bullets.push(`M&A / Exits: ${exitCompanies.join(', ')} — significant corporate events requiring partner attention.`)
+  }
+
+  if (fundingCompanies.length > 0) {
+    bullets.push(`Funding activity: ${fundingCompanies.join(', ')} raised new capital this period.`)
+  }
+
+  if (riskCompanies.length > 0) {
+    bullets.push(`Risk flags: ${riskCompanies.slice(0, 5).join(', ')} — negative sentiment warrants monitoring.`)
+  }
+
+  if (topSector) {
+    bullets.push(`${topSector[0]} leads article volume with ${topSector[1]} articles.${topSignalType ? ` Top signal type: ${topSignalType[0]} (${topSignalType[1]} instances).` : ''}`)
+  }
+
+  bullets.push(`${summaryByCompany.size} companies had material developments (of ${companies.length} tracked). ${companies.length - summaryByCompany.size} had no actionable news.`)
+
+  for (const bullet of bullets) {
+    if (doc.y > 700) doc.addPage()
+    doc.fontSize(11).fillColor(DARK).font('Helvetica-Bold').text('  •  ', { continued: true })
+    doc.font('Helvetica').fillColor(GRAY).text(bullet)
+    doc.moveDown(0.5)
+  }
+  doc.moveDown(1)
+
+  // ══════════════════════════════════════════
+  // PAGE 3: Top Signals (deduplicated)
+  // ══════════════════════════════════════════
+  doc.addPage()
+  sectionHeader('Top Signals')
 
   if (topSignals.length === 0) {
-    doc.fontSize(12).fillColor('#475569').font('Helvetica').text('No breaking or negative signals in this period.')
+    doc.fontSize(12).fillColor(GRAY).font('Helvetica').text('No breaking or negative signals in this period.')
   } else {
     for (const a of topSignals) {
       if (doc.y > 700) doc.addPage()
       const tag = a.isBreaking ? 'BREAKING' : 'NEGATIVE'
-      doc.fontSize(11).fillColor('#0f172a').font('Helvetica-Bold').text(`[${tag}] `, { continued: true })
-      doc.font('Helvetica').fillColor('#475569').text(`${a.company.name} — ${a.title}`)
+      doc.fontSize(11).fillColor(DARK).font('Helvetica-Bold').text(`[${tag}] `, { continued: true })
+      doc.font('Helvetica').fillColor(GRAY).text(`${a.company.name} — ${a.title}`)
       doc.moveDown(0.3)
     }
   }
   doc.moveDown(1)
 
-  // ── Company Briefs ──
+  // ══════════════════════════════════════════
+  // Company Briefs (material only)
+  // ══════════════════════════════════════════
   doc.addPage()
-  doc.fontSize(16).fillColor(BLUE).font('Helvetica-Bold').text('Company Briefs')
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e2e8f0').stroke()
-  doc.moveDown(0.5)
+  sectionHeader(`Company Briefs (${summaryByCompany.size} with material news)`)
 
   if (summaryByCompany.size === 0) {
-    doc.fontSize(12).fillColor('#475569').font('Helvetica').text('No summaries generated in this period.')
+    doc.fontSize(12).fillColor(GRAY).font('Helvetica').text('No summaries generated in this period.')
   } else {
     for (const [, s] of summaryByCompany) {
       if (doc.y > 650) doc.addPage()
 
-      let outlook = ''
-      if (s.metadata) {
-        const meta = parseJsonResponse<{ outlook?: string }>(s.metadata, {})
-        if (meta.outlook) outlook = ` (${meta.outlook})`
-      }
+      const meta = parseJsonResponse<{ outlook?: string }>(s.metadata ?? '{}', {})
+      const outlook = meta.outlook ?? ''
 
-      doc.fontSize(12).fillColor('#0f172a').font('Helvetica-Bold').text(`${s.company.name}${outlook}`)
-      doc.fontSize(11).fillColor('#475569').font('Helvetica').text(s.summaryText)
+      doc.fontSize(12).fillColor(DARK).font('Helvetica-Bold').text(`${s.company.name}${outlook ? ` (${outlook})` : ''}`)
+      doc.fontSize(11).fillColor(GRAY).font('Helvetica').text(s.summaryText)
       doc.moveDown(0.6)
     }
   }
 
-  // ── Sector Overview ──
+  // ══════════════════════════════════════════
+  // Sector Overview
+  // ══════════════════════════════════════════
   doc.addPage()
-  doc.fontSize(16).fillColor(BLUE).font('Helvetica-Bold').text('Sector Overview')
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e2e8f0').stroke()
-  doc.moveDown(0.5)
+  sectionHeader('Sector Overview')
 
   const sorted = [...sectorCounts.entries()].sort((a, b) => b[1] - a[1])
   doc.fontSize(11).fillColor('#334155').font('Helvetica-Bold')
   doc.text('Sector', 50, doc.y, { continued: false })
   doc.text('Articles', 400, doc.y - 11, { width: 100, align: 'right' })
   doc.moveDown(0.3)
-  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#e2e8f0').stroke()
+  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor(RULE_COLOR).stroke()
   doc.moveDown(0.3)
 
-  doc.font('Helvetica').fillColor('#475569').fontSize(11)
+  doc.font('Helvetica').fillColor(GRAY).fontSize(11)
   for (const [sector, count] of sorted) {
     if (doc.y > 700) doc.addPage()
     doc.text(sector, 50, doc.y)
@@ -205,7 +276,7 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
 
   // ── Footer ──
   doc.moveDown(2)
-  doc.fontSize(9).fillColor('#94a3b8').text('Initialized Capital — Confidential', { align: 'center' })
+  doc.fontSize(9).fillColor(LIGHT_GRAY).text('Initialized Capital — Confidential', { align: 'center' })
 
   doc.end()
   return done
