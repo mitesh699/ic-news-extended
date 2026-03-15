@@ -72,8 +72,13 @@ IMPORTANT: The portfolio has 175 companies. If a user asks about a company not i
 ### MCP Tools (Exa — web search)
 - exa_* tools — Real-time web search for latest news, company research. Use when DB data is insufficient or user asks about breaking events.
 
-### MCP Tools (Slack — optional)
-- slack_* tools — Post to Slack channels. Only available if SLACK_BOT_TOKEN is configured.
+### MCP Tools (Slack — optional, requires SLACK_BOT_TOKEN)
+- "slack_post_message" — Post a message to a Slack channel. Supports mrkdwn formatting.
+- "slack_list_channels" — List public channels in the workspace.
+- "slack_get_channel_history" — Get recent messages from a channel.
+- "slack_reply_to_thread" — Reply to a specific message thread.
+- "slack_add_reaction" — Add an emoji reaction to a message.
+- "slack_search_messages" — Search messages across the workspace.
 
 ## TOOL USE PRIORITY
 1. Answer from provided context if sufficient
