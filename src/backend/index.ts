@@ -35,6 +35,8 @@ import { generateSummariesForAll } from './services/summaries'
 import { fetchNewsForAllCompetitors } from './services/competitors'
 import { generateAllSectorBriefs } from './services/sector-briefs'
 import { dispatchWebhooks } from './services/webhooks'
+import { sendDailySlackDigest } from './services/slack-digest'
+import { sendWeeklyNewsletter } from './services/newsletter'
 
 const app = new Hono()
 
@@ -135,6 +137,46 @@ cron.schedule('0 */6 * * *', async () => {
   }
 })
 console.log('Cron: news refresh scheduled every 6 hours')
+
+// Overlap prevention
+let slackRunning = false
+let newsletterRunning = false
+
+// Daily Slack digest — 9am ET
+if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_DIGEST_CHANNEL_ID) {
+  cron.schedule('0 9 * * *', async () => {
+    if (slackRunning) return
+    slackRunning = true
+    try {
+      console.log('[cron] Sending daily Slack digest...')
+      const result = await sendDailySlackDigest()
+      console.log(`[cron] Slack digest: ${result.sent ? 'sent' : result.error}`)
+    } catch (err) {
+      console.error('[cron] Slack digest failed:', err instanceof Error ? err.message : String(err))
+    } finally {
+      slackRunning = false
+    }
+  }, { timezone: 'America/New_York' })
+  console.log('Cron: daily Slack digest scheduled (9am ET)')
+}
+
+// Weekly newsletter — Monday 8am ET
+if (process.env.RESEND_API_KEY) {
+  cron.schedule('0 8 * * 1', async () => {
+    if (newsletterRunning) return
+    newsletterRunning = true
+    try {
+      console.log('[cron] Sending weekly newsletter...')
+      const result = await sendWeeklyNewsletter()
+      console.log(`[cron] Newsletter: sent to ${result.sent} subscribers`)
+    } catch (err) {
+      console.error('[cron] Newsletter failed:', err instanceof Error ? err.message : String(err))
+    } finally {
+      newsletterRunning = false
+    }
+  }, { timezone: 'America/New_York' })
+  console.log('Cron: weekly newsletter scheduled (Monday 8am ET)')
+}
 
 const port = parseInt(process.env.PORT || '8000', 10)
 
