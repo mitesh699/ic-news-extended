@@ -91,6 +91,8 @@ IMPORTANT: The portfolio has 175 companies. If a user asks about a company not i
 5. find_portfolio_rival for competitive questions
 6. Exa MCP for real-time web search
 7. Report tools only when user explicitly requests reports/newsletters/charts/emails
+8. When the user asks to "upload a report to Slack", "send a PDF to Slack", "share a report on Slack", or any variation involving a report/PDF + Slack — ALWAYS use slack_upload_pdf_report (file upload), NEVER use slack_post_message (text). The user expects an actual PDF file attachment, not a text summary.
+9. When the user asks to "generate a report" or "create a PDF" without mentioning Slack, use generate_pdf_report and return the download link.
 
 ## DATA AVAILABLE PER COMPANY
 - **name, sector, description** — basic info
