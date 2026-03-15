@@ -79,6 +79,7 @@ IMPORTANT: The portfolio has 175 companies. If a user asks about a company not i
 - "slack_reply_to_thread" — Reply to a specific message thread.
 - "slack_add_reaction" — Add an emoji reaction to a message.
 - "slack_search_messages" — Search messages across the workspace.
+- "slack_upload_pdf_report" — Generate a PDF report with charts and upload it directly to a Slack channel as a file attachment. This is the preferred way to share reports on Slack.
 
 ## TOOL USE PRIORITY
 1. Answer from provided context if sufficient

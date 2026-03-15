@@ -164,6 +164,75 @@ server.tool(
   }
 )
 
+server.tool(
+  'upload_pdf_report',
+  'Generate a portfolio intelligence PDF report with charts and upload it directly to the Slack channel as a file attachment.',
+  {
+    channel: z.string().describe('Channel ID to upload to'),
+    days_back: z.number().min(1).max(90).default(7).describe('Number of days to cover'),
+    message: z.string().default('').describe('Optional message to accompany the file'),
+  },
+  async ({ channel, days_back, message }) => {
+    // Dynamic import — this runs as a child process, so we load on demand
+    const { generatePortfolioPDF } = await import('../services/pdf-report.js')
+    const pdfBuffer = await generatePortfolioPDF({ daysBack: days_back })
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const filename = `portfolio-report-${dateStr}.pdf`
+
+    const token = process.env.SLACK_BOT_TOKEN
+    if (!token) throw new Error('SLACK_BOT_TOKEN not set')
+
+    // Step 1: Get upload URL
+    const getUrlRes = await fetch(`${SLACK_API}/files.getUploadURLExternal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: new URLSearchParams({
+        filename,
+        length: String(pdfBuffer.length),
+      }),
+    })
+    const urlData = await getUrlRes.json() as { ok: boolean; upload_url?: string; file_id?: string; error?: string }
+    if (!urlData.ok || !urlData.upload_url || !urlData.file_id) {
+      throw new Error(`files.getUploadURLExternal: ${urlData.error ?? 'missing upload_url'}`)
+    }
+
+    // Step 2: Upload the file content
+    const uploadRes = await fetch(urlData.upload_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBuffer,
+    })
+    if (!uploadRes.ok) {
+      throw new Error(`File upload failed: ${uploadRes.status}`)
+    }
+
+    // Step 3: Complete the upload and share to channel
+    const completeRes = await fetch(`${SLACK_API}/files.completeUploadExternal`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        files: [{ id: urlData.file_id, title: `Portfolio Report — ${dateStr}` }],
+        channel_id: channel,
+        initial_comment: message || `Portfolio Intelligence Report — last ${days_back} days`,
+      }),
+    })
+    const completeData = await completeRes.json() as { ok: boolean; error?: string }
+    if (!completeData.ok) {
+      throw new Error(`files.completeUploadExternal: ${completeData.error}`)
+    }
+
+    return {
+      content: [{ type: 'text' as const, text: `PDF report uploaded to channel (${filename}, ${(pdfBuffer.length / 1024).toFixed(0)}KB)` }],
+    }
+  }
+)
+
 async function main() {
   const transport = new StdioServerTransport()
   await server.connect(transport)

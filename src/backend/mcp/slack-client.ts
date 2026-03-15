@@ -20,6 +20,8 @@ function getClient(): MCPClient | null {
         env: {
           SLACK_BOT_TOKEN: process.env.SLACK_BOT_TOKEN,
           SLACK_DIGEST_CHANNEL_ID: process.env.SLACK_DIGEST_CHANNEL_ID ?? '',
+          DATABASE_URL: process.env.DATABASE_URL ?? '',
+          PATH: process.env.PATH ?? '',
         },
       },
     },
