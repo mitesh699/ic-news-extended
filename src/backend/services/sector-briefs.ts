@@ -2,9 +2,7 @@ import { db } from '../db/client'
 import { getAnthropic } from '../adapters/llm'
 import { formatMetaContext } from '../utils/parseSummaryMeta'
 
-function stripMarkdownFences(text: string): string {
-  return text.replace(/^\s*```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '').trim()
-}
+import { stripMarkdownFences } from '../utils/parse-json'
 
 const SECTOR_BRIEF_PROMPT = `You are a senior investment analyst at Initialized Capital. Given recent portfolio and competitor news for a sector, produce a JSON sector intelligence brief:
 

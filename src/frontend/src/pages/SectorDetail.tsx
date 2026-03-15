@@ -1,23 +1,20 @@
+import { useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, TrendingDown, Minus, Activity, AlertCircle, Eye, Swords } from "lucide-react";
+import { Activity, AlertCircle, ArrowUpRight, Building2, Eye, Swords } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { motion } from "framer-motion";
 import { fetchSectorBrief } from "@/lib/api";
+import { useCompanies } from "@/hooks/useCompanies";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { PageTransition } from "@/components/PageTransition";
 import { ChatWidget } from "@/components/ChatWidget";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getTrendConfig } from "@/lib/sector-config";
+import { getSentiment, sentimentTextClass } from "@/lib/sentiment";
 import type { SectorBriefMeta } from "@/types/company";
-
-const TREND_CONFIG = {
-  growing: { icon: TrendingUp, color: "text-signal-positive", border: "border-signal-positive/30" },
-  stable: { icon: Minus, color: "text-signal-neutral", border: "border-border" },
-  declining: { icon: TrendingDown, color: "text-signal-negative", border: "border-signal-negative/30" },
-  volatile: { icon: Activity, color: "text-accent", border: "border-accent/30" },
-} as const;
 
 export default function SectorDetail() {
   const { sector: sectorParam } = useParams<{ sector: string }>();
@@ -29,6 +26,12 @@ export default function SectorDetail() {
     enabled: !!sector,
     staleTime: 5 * 60_000,
   });
+
+  const { data: allCompanies } = useCompanies();
+  const sectorCompanies = useMemo(
+    () => allCompanies?.filter(c => c.sector?.toLowerCase() === sector.toLowerCase()) ?? [],
+    [allCompanies, sector]
+  );
 
   if (isLoading) {
     return (
@@ -61,8 +64,7 @@ export default function SectorDetail() {
   }
 
   const meta: SectorBriefMeta | null = data.metadata;
-  const trend = meta?.trendDirection ?? "stable";
-  const { icon: TrendIcon, color: trendColor, border: trendBorder } = TREND_CONFIG[trend];
+  const { icon: TrendIcon, color: trendColor, border: trendBorder, label: trendLabel } = getTrendConfig(meta?.trendDirection);
 
   return (
     <PageTransition className="min-h-screen bg-background">
@@ -93,7 +95,7 @@ export default function SectorDetail() {
                 <TrendIcon className={cn("h-4 w-4", trendColor)} />
                 <div>
                   <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50">Trend</p>
-                  <p className={cn("text-[14px] font-bold uppercase tracking-[0.08em]", trendColor)}>{trend}</p>
+                  <p className={cn("text-[14px] font-bold uppercase tracking-[0.08em]", trendColor)}>{trendLabel}</p>
                 </div>
               </div>
             </div>
@@ -122,12 +124,65 @@ export default function SectorDetail() {
               </motion.div>
             )}
 
+            {/* Portfolio Companies in Sector */}
+            {sectorCompanies.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.12, duration: 0.4 }}
+                className="mb-8"
+              >
+                <p className="section-label mb-4 flex items-center gap-2">
+                  <Building2 className="h-3 w-3" /> Portfolio Companies — {sectorCompanies.length}
+                </p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {sectorCompanies.map((c, i) => {
+                    const pos = c.newsArticles.filter(a => a.signal === "positive").length;
+                    const neg = c.newsArticles.filter(a => a.signal === "negative").length;
+                    const sentiment = getSentiment(pos, neg);
+                    return (
+                      <motion.div
+                        key={c.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 + i * 0.04, duration: 0.3 }}
+                        whileHover={{ y: -2, transition: { duration: 0.15 } }}
+                      >
+                        <Link
+                          to={`/company/${c.id}`}
+                          className="group glass-card p-4 border border-border/40 hover:border-accent/30 transition-colors block h-full"
+                        >
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h4 className="text-[13px] font-bold text-foreground/85 group-hover:text-accent transition-colors">
+                              {c.name}
+                            </h4>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={cn("text-[8px] font-bold uppercase tracking-[0.12em]", sentimentTextClass(sentiment))}>
+                                {sentiment}
+                              </span>
+                              <ArrowUpRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-accent/50 transition-all" />
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground/50 leading-[1.5] line-clamp-2 mb-2">
+                            {c.businessProfile || c.description}
+                          </p>
+                          <span className="text-[9px] text-muted-foreground/35 mono">
+                            {c.newsArticles.length} articles
+                          </span>
+                        </Link>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+
             {/* Competitor Moves */}
             {meta?.competitorMoves && meta.competitorMoves.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15, duration: 0.4 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
                 className="mb-8"
               >
                 <p className="section-label mb-4 flex items-center gap-2">

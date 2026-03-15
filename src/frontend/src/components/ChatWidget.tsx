@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { MessageCircle, X, Send, Bot, AlertCircle, RotateCw } from "lucide-react";
+import { MessageCircle, X, Send, Bot, AlertCircle, RotateCw, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { sendChatMessage } from "@/lib/api";
+import { sendChatMessage, streamChatMessage } from "@/lib/api";
 import { useCompanies } from "@/hooks/useCompanies";
 
 interface ChatMessage {
@@ -99,6 +99,7 @@ export function ChatWidget() {
     ];
   }, [companies]);
   const [isOpen, setIsOpen] = useState(false);
+  const [agentMode, setAgentMode] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -109,8 +110,10 @@ export function ChatWidget() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const streamingMsgId = useRef<string | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -132,32 +135,91 @@ export function ChatWidget() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setIsTyping(true);
+    setActiveToolCall(null);
 
-    try {
-      // Build conversation history from prior messages (skip welcome, errors, and followUps)
-      const history = messages
-        .filter(m => m.id !== "welcome" && !m.isError)
-        .map(m => ({ role: m.role, content: m.content }))
-        .slice(-10);
+    const history = messages
+      .filter(m => m.id !== "welcome" && !m.isError)
+      .map(m => ({ role: m.role, content: m.content }))
+      .slice(-10);
 
-      const data = await sendChatMessage(text.trim(), undefined, history.length > 0 ? history : undefined);
+    if (agentMode) {
+      // Streaming agent mode
+      const msgId = crypto.randomUUID();
+      streamingMsgId.current = msgId;
+
+      // Add empty assistant message that we'll fill progressively
       setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: msgId,
         role: "assistant",
-        content: data.response,
+        content: "",
         timestamp: new Date(),
-        followUps: data.followUps,
       }]);
-    } catch {
-      setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "Something went wrong — couldn't reach the server.",
-        timestamp: new Date(),
-        isError: true,
-      }]);
-    } finally {
-      setIsTyping(false);
+
+      try {
+        await streamChatMessage(
+          text.trim(),
+          {
+            onToken: (token) => {
+              setMessages(prev =>
+                prev.map(m => m.id === msgId ? { ...m, content: m.content + token } : m)
+              );
+            },
+            onToolCall: (toolName) => {
+              const label = toolName.replace(/_/g, ' ');
+              setActiveToolCall(label);
+            },
+            onToolResult: () => {
+              setActiveToolCall(null);
+            },
+            onDone: (followUps) => {
+              setMessages(prev =>
+                prev.map(m => m.id === msgId ? { ...m, followUps } : m)
+              );
+              setIsTyping(false);
+              setActiveToolCall(null);
+              streamingMsgId.current = null;
+            },
+            onError: (error) => {
+              setMessages(prev =>
+                prev.map(m => m.id === msgId ? { ...m, content: m.content || `Error: ${error}`, isError: !m.content } : m)
+              );
+              setIsTyping(false);
+              setActiveToolCall(null);
+              streamingMsgId.current = null;
+            },
+          },
+          history.length > 0 ? history : undefined,
+        );
+      } catch {
+        setMessages(prev =>
+          prev.map(m => m.id === msgId ? { ...m, content: "Something went wrong — couldn't reach the server.", isError: true } : m)
+        );
+        setIsTyping(false);
+        setActiveToolCall(null);
+        streamingMsgId.current = null;
+      }
+    } else {
+      // Basic mode — non-streaming
+      try {
+        const data = await sendChatMessage(text.trim(), undefined, history.length > 0 ? history : undefined, false);
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: data.response,
+          timestamp: new Date(),
+          followUps: data.followUps,
+        }]);
+      } catch {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "Something went wrong — couldn't reach the server.",
+          timestamp: new Date(),
+          isError: true,
+        }]);
+      } finally {
+        setIsTyping(false);
+      }
     }
   };
 
@@ -192,7 +254,7 @@ export function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            className="fixed bottom-6 right-6 z-50 w-[380px] h-[540px] glass-card shadow-chat flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 z-50 w-[480px] h-[700px] glass-card shadow-chat flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
@@ -200,13 +262,29 @@ export function ChatWidget() {
                 <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 mb-1">Intelligence</p>
                 <p className="text-[15px] font-bold tracking-[-0.02em] text-foreground">Portfolio AI</p>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                aria-label="Close chat"
-                className="h-8 w-8 hover:bg-foreground/[0.05] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-foreground/20"
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setAgentMode(!agentMode)}
+                  aria-label={agentMode ? "Disable agent mode" : "Enable agent mode"}
+                  title={agentMode ? "Agent mode: ON — tools + web search" : "Agent mode: OFF — fast context-only"}
+                  className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1.5 text-[9px] font-bold uppercase tracking-[0.08em] border transition-all",
+                    agentMode
+                      ? "border-accent/60 bg-accent/10 text-accent"
+                      : "border-border/50 bg-transparent text-muted-foreground/50 hover:border-border hover:text-muted-foreground"
+                  )}
+                >
+                  <Zap className={cn("h-3 w-3", agentMode && "fill-accent/30")} />
+                  Agent
+                </button>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  aria-label="Close chat"
+                  className="h-8 w-8 hover:bg-foreground/[0.05] flex items-center justify-center transition-colors focus-visible:ring-2 focus-visible:ring-foreground/20"
+                >
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
@@ -280,7 +358,7 @@ export function ChatWidget() {
                 </motion.div>
               ))}
 
-              {isTyping && (
+              {isTyping && !streamingMsgId.current && (
                 <motion.div
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -296,6 +374,18 @@ export function ChatWidget() {
                       <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:300ms]" />
                     </div>
                   </div>
+                </motion.div>
+              )}
+              {activeToolCall && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex items-center gap-2 px-2 py-1"
+                >
+                  <div className="h-3 w-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  <span className="text-[10px] text-accent/70 mono uppercase tracking-[0.1em]">
+                    {activeToolCall}...
+                  </span>
                 </motion.div>
               )}
 

@@ -2,12 +2,8 @@ import { db } from '../db/client'
 import { fetchNewsData, type FetchedArticle } from '../adapters/newsdata'
 import { fetchExaNews } from '../adapters/exa'
 import { classifySentiment, filterRelevantArticles } from '../adapters/llm'
-import { createHash } from 'crypto'
 import { sleep } from '../utils/sleep'
-
-function hashUrl(url: string): string {
-  return createHash('sha256').update(url).digest('hex')
-}
+import { hashUrl } from '../utils/hash'
 
 export function parseKeywords(raw: string | null): string[] {
   if (!raw) return []
@@ -19,7 +15,7 @@ export function parseKeywords(raw: string | null): string[] {
   }
 }
 
-function buildSearchQueries(companyName: string, keywords: string[], sector: string): string[] {
+function buildSearchQueries(companyName: string, keywords: string[], sector: string, founderName?: string): string[] {
   const queries: string[] = []
 
   // Primary: company name with business context
@@ -30,8 +26,12 @@ function buildSearchQueries(companyName: string, keywords: string[], sector: str
     queries.push(...keywords.slice(0, 2).map(kw => `${kw} news`))
   }
 
-  // Fallback: broader search without sector constraint
-  queries.push(`"${companyName}" startup`)
+  // Founder-aware query for disambiguation
+  if (founderName) {
+    queries.push(`"${companyName}" "${founderName}" startup`)
+  } else {
+    queries.push(`"${companyName}" startup`)
+  }
 
   return queries
 }
@@ -161,9 +161,10 @@ export function isRelevant(article: FetchedArticle, companyName: string, keyword
 async function fetchArticlesWithFallback(
   companyName: string,
   keywords: string[],
-  sector: string
+  sector: string,
+  founderName?: string,
 ): Promise<FetchedArticle[]> {
-  const queries = buildSearchQueries(companyName, keywords, sector)
+  const queries = buildSearchQueries(companyName, keywords, sector, founderName)
   let allArticles: FetchedArticle[] = []
 
   // Primary: Exa (fast, neural search with highlights)
@@ -204,14 +205,29 @@ async function fetchArticlesWithFallback(
   }).slice(0, 10)
 }
 
-export async function fetchNewsForCompany(companyId: string, companyName: string, keywords: string[] = [], sector: string = 'Technology'): Promise<number> {
-  let articles: FetchedArticle[] = await fetchArticlesWithFallback(companyName, keywords, sector)
+export async function fetchNewsForCompany(
+  companyId: string,
+  companyName: string,
+  keywords: string[] = [],
+  sector: string = 'Technology',
+  context?: { description?: string; businessProfile?: string; founders?: string },
+): Promise<number> {
+  // Extract first founder name for search disambiguation
+  let founderName: string | undefined
+  if (context?.founders) {
+    try {
+      const parsed = JSON.parse(context.founders)
+      if (Array.isArray(parsed) && parsed[0]?.name) founderName = parsed[0].name
+    } catch { /* ignore */ }
+  }
+
+  let articles: FetchedArticle[] = await fetchArticlesWithFallback(companyName, keywords, sector, founderName)
 
   if (articles.length === 0) return 0
 
   // LLM relevance filter — GPT-5-mini checks if articles are actually about this company
   if (process.env.OPENAI_API_KEY) {
-    const relevance = await filterRelevantArticles(articles.map((a) => a.title), companyName, sector)
+    const relevance = await filterRelevantArticles(articles.map((a) => a.title), companyName, sector, context)
     const before = articles.length
     articles = articles.filter((_, i) => relevance[i])
     if (articles.length < before) {
@@ -257,13 +273,19 @@ export async function fetchNewsForCompany(companyId: string, companyName: string
 
 // Process a batch of companies concurrently
 async function processBatch(
-  companies: { id: string; name: string; keywords: string | null; sector: string | null }[],
+  companies: { id: string; name: string; keywords: string | null; sector: string | null; description: string | null; businessProfile: string | null; founders: string | null }[],
   perCompany: Record<string, number>
 ): Promise<number> {
   const results = await Promise.allSettled(
     companies.map(async (company) => {
       const keywords = parseKeywords(company.keywords)
-      const count = await fetchNewsForCompany(company.id, company.name, keywords, company.sector || 'Technology')
+      const count = await fetchNewsForCompany(
+        company.id,
+        company.name,
+        keywords,
+        company.sector || 'Technology',
+        { description: company.description ?? undefined, businessProfile: company.businessProfile ?? undefined, founders: company.founders ?? undefined },
+      )
       perCompany[company.name] = count
       console.log(`${company.name}: ${count} new articles`)
       return count

@@ -6,6 +6,8 @@ import { NewsItem } from "@/components/NewsItem";
 import { Sparkline } from "@/components/Sparkline";
 import type { Company } from "@/types/company";
 import { cn } from "@/lib/utils";
+import { getSentiment } from "@/lib/sentiment";
+import { calculateSparklineData, sparklineColor } from "@/lib/sparkline";
 import { useMemo } from "react";
 
 interface CompanyCardProps {
@@ -17,27 +19,11 @@ export function CompanyCard({ company, onClick }: CompanyCardProps) {
   const positiveCount = company.newsArticles.filter(a => a.signal === "positive").length;
   const negativeCount = company.newsArticles.filter(a => a.signal === "negative").length;
   const hasBreaking = company.newsArticles.some(a => a.isBreaking);
-  const sentiment = positiveCount > negativeCount ? "positive" : negativeCount > positiveCount ? "negative" : "neutral";
+  const sentiment = getSentiment(positiveCount, negativeCount);
   const totalArticles = company.newsArticles.length;
 
-  // Generate sparkline data from article signals over time
-  const sparklineData = useMemo(() => {
-    const sorted = [...company.newsArticles].sort(
-      (a, b) => new Date(a.publishedAt ?? a.fetchedAt).getTime() - new Date(b.publishedAt ?? b.fetchedAt).getTime()
-    );
-    let cumulative = 50;
-    return sorted.map(a => {
-      if (a.signal === "positive") cumulative += 8;
-      else if (a.signal === "negative") cumulative -= 8;
-      else cumulative += 1;
-      return cumulative;
-    });
-  }, [company.newsArticles]);
-
-  const sparkColor =
-    sentiment === "positive" ? "hsl(152, 55%, 36%)" :
-    sentiment === "negative" ? "hsl(0, 65%, 48%)" :
-    "hsl(38, 70%, 48%)";
+  const sparklineData = useMemo(() => calculateSparklineData(company.newsArticles), [company.newsArticles]);
+  const sparkColor = sparklineColor(sentiment);
 
   return (
     <motion.div
@@ -48,7 +34,7 @@ export function CompanyCard({ company, onClick }: CompanyCardProps) {
     >
       <div
         className={cn(
-          "group cursor-pointer glass-card overflow-hidden",
+          "group cursor-pointer glass-card overflow-hidden h-[420px] flex flex-col",
         )}
         onClick={onClick}
       >
@@ -68,7 +54,7 @@ export function CompanyCard({ company, onClick }: CompanyCardProps) {
           )} />
         </div>
 
-        <div className="p-5">
+        <div className="p-5 flex-1 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex-1 min-w-0">
@@ -76,6 +62,11 @@ export function CompanyCard({ company, onClick }: CompanyCardProps) {
                 <h3 className="text-[20px] font-bold tracking-[-0.03em] text-foreground group-hover:text-accent transition-colors duration-200 headline-font">
                   {company.name}
                 </h3>
+                {company.status === "exit" && (
+                  <span className="text-[7px] font-bold uppercase tracking-[0.14em] text-muted-foreground/50 bg-muted/40 px-1.5 py-0.5 border border-border/40">
+                    Exit
+                  </span>
+                )}
                 {hasBreaking && (
                   <span className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-[0.14em] text-accent breaking-pulse bg-accent/8 px-2 py-0.5">
                     <Zap className="h-2.5 w-2.5" />

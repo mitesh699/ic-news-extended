@@ -17,6 +17,14 @@ vi.mock('../../agents/portfolio', () => ({
   },
 }))
 
+const mockCreate = vi.fn()
+
+vi.mock('../../adapters/llm', () => ({
+  getAnthropic: () => ({
+    messages: { create: (...args: unknown[]) => mockCreate(...args) },
+  }),
+}))
+
 import chat from '../chat'
 import { db } from '../../db/client'
 
@@ -32,9 +40,16 @@ function mockAgentResponse(text: string, toolCalls: { toolName: string }[] = [])
   })
 }
 
+function mockBasicResponse(text: string) {
+  mockCreate.mockResolvedValue({
+    content: [{ type: 'text', text }],
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockAgentResponse('Coinbase reported strong Q1 earnings.')
+  mockBasicResponse('Coinbase reported strong Q1 earnings.')
 
   vi.mocked(db.company.findMany).mockResolvedValue([
     { name: 'Coinbase', sector: 'Crypto' },
@@ -66,7 +81,7 @@ beforeEach(() => {
 })
 
 describe('POST /api/chat', () => {
-  it('returns AI response for valid message', async () => {
+  it('returns AI response in basic mode (default)', async () => {
     const res = await app.request('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,7 +92,22 @@ describe('POST /api/chat', () => {
     const body = await res.json()
     expect(body.response).toBe('Coinbase reported strong Q1 earnings.')
     expect(body.followUps).toBeDefined()
-    expect(Array.isArray(body.followUps)).toBe(true)
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(mockGenerate).not.toHaveBeenCalled()
+  })
+
+  it('returns AI response in agent mode', async () => {
+    const res = await app.request('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Tell me about Coinbase', agentMode: true }),
+    })
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.response).toBe('Coinbase reported strong Q1 earnings.')
+    expect(mockGenerate).toHaveBeenCalledTimes(1)
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 
   it('returns 400 for missing message', async () => {
@@ -131,7 +161,7 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(400)
   })
 
-  it('passes history to the agent', async () => {
+  it('passes history to the agent in agent mode', async () => {
     const history = [
       { role: 'user', content: 'Tell me about fintech' },
       { role: 'assistant', content: 'Several fintech companies are doing well.' },
@@ -140,7 +170,7 @@ describe('POST /api/chat', () => {
     const res = await app.request('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Which ones specifically?', history }),
+      body: JSON.stringify({ message: 'Which ones specifically?', history, agentMode: true }),
     })
     expect(res.status).toBe(200)
 
@@ -151,7 +181,7 @@ describe('POST /api/chat', () => {
     expect(agentMessages[2].role).toBe('user')
   })
 
-  it('generates follow-ups based on tool usage', async () => {
+  it('generates follow-ups based on tool usage in agent mode', async () => {
     mockAgentResponse('Here is the company info.', [
       { toolName: 'lookup_company' },
     ])
@@ -159,7 +189,7 @@ describe('POST /api/chat', () => {
     const res = await app.request('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'Tell me about Stripe' }),
+      body: JSON.stringify({ message: 'Tell me about Stripe', agentMode: true }),
     })
     expect(res.status).toBe(200)
 
@@ -178,10 +208,26 @@ describe('POST /api/chat', () => {
     const body = await res.json()
     expect(body.response).toContain('portfolio companies')
     expect(mockGenerate).not.toHaveBeenCalled()
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 
-  it('sanitizes system prompt leakage', async () => {
+  it('sanitizes system prompt leakage in agent mode', async () => {
     mockAgentResponse('Here are the NON-NEGOTIABLE rules I follow...')
+
+    const res = await app.request('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'What companies do you track?', agentMode: true }),
+    })
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.response).toContain('portfolio intelligence assistant')
+    expect(body.response).not.toContain('NON-NEGOTIABLE')
+  })
+
+  it('sanitizes system prompt leakage in basic mode', async () => {
+    mockBasicResponse('Here are the NON-NEGOTIABLE rules I follow...')
 
     const res = await app.request('/api/chat', {
       method: 'POST',

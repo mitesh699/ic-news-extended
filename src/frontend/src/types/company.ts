@@ -26,6 +26,9 @@ export interface Company {
   logo?: string;
   sector: string;
   description: string;
+  businessProfile?: string;
+  founders?: { name: string; role: string }[];
+  status?: "active" | "exit";
   summary: string;
   summaryMeta?: SummaryMeta | null;
   newsArticles: NewsArticle[];

@@ -23,17 +23,20 @@ model Source {
 
 // ─── Portfolio Companies ───
 model Company {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
-  website     String?
-  sector      String?
-  logoUrl     String?
-  keywords    String?   // JSON array of search terms for news queries
-  scrapedAt   DateTime  @default(now())
-  lastFetchedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String    @unique
+  description     String?
+  businessProfile String?   // Exa-sourced: what the company does, revenue model, customers
+  founders        String?   // JSON array: [{ name, role }]
+  status          String    @default("active") // "active" | "exit"
+  website         String?
+  sector          String?
+  logoUrl         String?
+  keywords        String?   // JSON array of search terms for news queries
+  scrapedAt       DateTime  @default(now())
+  lastFetchedAt   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   articles    Article[]
   summaries   Summary[]

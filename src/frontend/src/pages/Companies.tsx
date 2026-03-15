@@ -11,6 +11,7 @@ import { CompanyCard } from "@/components/CompanyCard";
 import { CompanyCardSkeleton } from "@/components/CompanyCardSkeleton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PageTransition } from "@/components/PageTransition";
+import { ChatWidget } from "@/components/ChatWidget";
 import { useCompanies, useRefreshNews } from "@/hooks/useCompanies";
 import type { TopicFilter } from "@/types/company";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ const Companies = () => {
 
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState<TopicFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "exit">("all");
   const [sortBy, setSortBy] = useState<"name" | "recent">("name");
 
   const lastRefreshed = useMemo(() => {
@@ -94,7 +96,8 @@ const Companies = () => {
         const q = search.toLowerCase();
         const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.sector.toLowerCase().includes(q);
         const matchesSector = sector === "all" || c.sector.toLowerCase().includes(sector);
-        return matchesSearch && matchesSector;
+        const matchesStatus = statusFilter === "all" || (c.status ?? "active") === statusFilter;
+        return matchesSearch && matchesSector && matchesStatus;
       })
       .sort((a, b) => {
         if (sortBy === "recent") return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
@@ -132,7 +135,7 @@ const Companies = () => {
 
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
-    estimateSize: () => 380,
+    estimateSize: () => 452,
     overscan: 3,
     scrollMargin: parentOffsetRef.current,
   });
@@ -200,13 +203,22 @@ const Companies = () => {
       )}
 
       {/* Main */}
-      <main className="max-w-[1440px] mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+      <main className="max-w-[1440px] mx-auto px-6 py-10">
+        <div className="flex items-center justify-between mb-8">
           <p className="section-label">
             Portfolio Companies{!isLoading && ` — ${filtered.length}`}
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <SectorDropdown value={sector} onChange={setSector} />
+            <div className="h-4 w-px bg-border/30" />
+            <div className="flex gap-0.5">
+              {(["all", "active", "exit"] as const).map(s => (
+                <button key={s} onClick={() => setStatusFilter(s)}
+                  className={cn("filter-pill text-[9px]", statusFilter === s && "filter-pill-active")}>
+                  {s === "all" ? "All" : s === "active" ? "Active" : "Exited"}
+                </button>
+              ))}
+            </div>
             <div className="h-4 w-px bg-border/30" />
             <div className="flex gap-0.5">
               {([
@@ -223,7 +235,7 @@ const Companies = () => {
         </div>
 
         {isLoading ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 9 }).map((_, i) => <CompanyCardSkeleton key={i} />)}
           </div>
         ) : filtered.length === 0 ? (
@@ -268,10 +280,10 @@ const Companies = () => {
                   left: 0,
                   width: "100%",
                   transform: `translateY(${vRow.start - virtualizer.options.scrollMargin}px)`,
-                  paddingBottom: "20px",
+                  paddingBottom: "32px",
                 }}
               >
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {rows[vRow.index].map((company) => (
                     <CompanyCard
                       key={company.id}
@@ -285,6 +297,7 @@ const Companies = () => {
           </div>
         )}
       </main>
+      <ChatWidget />
     </PageTransition>
   );
 };

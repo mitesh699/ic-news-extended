@@ -9,8 +9,12 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ChatWidget } from "@/components/ChatWidget";
 import { Sparkline } from "@/components/Sparkline";
 import { CompetitorPanel } from "@/components/CompetitorPanel";
+import { PortfolioRivalCard } from "@/components/PortfolioRivalCard";
+import { findClosestRival } from "@/lib/find-rival";
 import { PageTransition } from "@/components/PageTransition";
 import { cn } from "@/lib/utils";
+import { getSentiment, sentimentBorderClass, sentimentTextClass } from "@/lib/sentiment";
+import { calculateSparklineData, sparklineColor } from "@/lib/sparkline";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function CompanyDetail() {
@@ -22,20 +26,15 @@ export default function CompanyDetail() {
   const negative = useMemo(() => company?.newsArticles.filter(a => a.signal === "negative") || [], [company]);
   const neutral = useMemo(() => company?.newsArticles.filter(a => a.signal === "neutral" || !a.signal) || [], [company]);
 
-  // Sparkline data
-  const sparklineData = useMemo(() => {
-    if (!company) return [];
-    const sorted = [...company.newsArticles].sort(
-      (a, b) => new Date(a.publishedAt ?? a.fetchedAt).getTime() - new Date(b.publishedAt ?? b.fetchedAt).getTime()
-    );
-    let cumulative = 50;
-    return sorted.map(a => {
-      if (a.signal === "positive") cumulative += 8;
-      else if (a.signal === "negative") cumulative -= 8;
-      else cumulative += 1;
-      return cumulative;
-    });
-  }, [company]);
+  const rival = useMemo(
+    () => company && companies ? findClosestRival(company, companies) : null,
+    [company, companies]
+  );
+
+  const sparklineData = useMemo(
+    () => company ? calculateSparklineData(company.newsArticles) : [],
+    [company]
+  );
 
   if (isLoading) {
     return (
@@ -69,11 +68,8 @@ export default function CompanyDetail() {
     );
   }
 
-  const sentiment = positive.length > negative.length ? "positive" : negative.length > positive.length ? "negative" : "neutral";
-  const sparkColor =
-    sentiment === "positive" ? "hsl(152, 55%, 36%)" :
-    sentiment === "negative" ? "hsl(0, 65%, 48%)" :
-    "hsl(38, 70%, 48%)";
+  const sentiment = getSentiment(positive.length, negative.length);
+  const sparkColor = sparklineColor(sentiment);
 
   return (
     <PageTransition className="min-h-screen bg-background">
@@ -108,22 +104,22 @@ export default function CompanyDetail() {
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground/50 mt-2">
                   {company.sector} — {company.description}
                 </p>
+                {company.founders && company.founders.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+                    {company.founders.map(f => `${f.name} (${f.role})`).join(' · ')}
+                  </p>
+                )}
+                {company.businessProfile && (
+                  <p className="text-[11px] text-foreground/50 leading-[1.5] mt-2 max-w-[600px] line-clamp-1">
+                    {company.businessProfile.replace(/^#.*\n+/gm, '').trim()}
+                  </p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-3">
-                <div className={cn(
-                  "px-4 py-2 border glass-card",
-                  sentiment === "positive" && "border-signal-positive/30 bg-signal-positive/5",
-                  sentiment === "negative" && "border-signal-negative/30 bg-signal-negative/5",
-                  sentiment === "neutral" && "border-border bg-muted/30",
-                )}>
+                <div className={cn("px-4 py-2 border glass-card", sentimentBorderClass(sentiment))}>
                   <p className="text-[8px] font-bold uppercase tracking-[0.2em] text-muted-foreground/50 mb-1">Sentiment</p>
-                  <p className={cn(
-                    "text-[14px] font-bold uppercase tracking-[0.08em]",
-                    sentiment === "positive" && "text-signal-positive",
-                    sentiment === "negative" && "text-signal-negative",
-                    sentiment === "neutral" && "text-signal-neutral",
-                  )}>
-                    {sentiment === "positive" ? "Positive" : sentiment === "negative" ? "Negative" : "Neutral"}
+                  <p className={cn("text-[14px] font-bold uppercase tracking-[0.08em] capitalize", sentimentTextClass(sentiment))}>
+                    {sentiment}
                   </p>
                 </div>
                 <Sparkline data={sparklineData} width={120} height={32} color={sparkColor} />
@@ -175,6 +171,17 @@ export default function CompanyDetail() {
               <p className="section-label mb-3">AI Portfolio Brief</p>
               <p className="text-[16px] text-foreground/85 leading-[1.8] headline-font-italic">{company.summary}</p>
             </motion.div>
+
+            {/* Closest Portfolio Peer */}
+            {rival && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15, duration: 0.4 }}
+              >
+                <PortfolioRivalCard rival={rival} />
+              </motion.div>
+            )}
 
             {/* Signal sections */}
             <ArticleSection articles={positive} label="Positive Coverage" icon={TrendingUp} color="text-signal-positive" borderColor="border-l-signal-positive" delay={0.15} />

@@ -71,7 +71,7 @@ refresh.post('/:companyId', async (c) => {
 
   const company = await db.company.findUnique({
     where: { id: companyId },
-    select: { id: true, name: true, keywords: true, sector: true },
+    select: { id: true, name: true, keywords: true, sector: true, description: true, businessProfile: true, founders: true },
   })
 
   if (!company) {
@@ -85,7 +85,8 @@ refresh.post('/:companyId', async (c) => {
       company.id,
       company.name,
       keywords,
-      company.sector || 'Technology'
+      company.sector || 'Technology',
+      { description: company.description ?? undefined, businessProfile: company.businessProfile ?? undefined, founders: company.founders ?? undefined },
     )
 
     const summaryGenerated = await generateSummaryForCompany(company.id)

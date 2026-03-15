@@ -64,6 +64,10 @@ app.use(
   '/api/refresh',
   timeout(300_000, new HTTPException(408, { message: 'Pipeline timeout' }))
 )
+app.use(
+  '/api/chat',
+  timeout(120_000, new HTTPException(504, { message: 'Chat timeout' }))
+)
 app.use('/api/*', timeout(30_000))
 
 // CORS — allow known frontend origins

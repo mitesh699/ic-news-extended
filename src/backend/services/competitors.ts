@@ -1,12 +1,8 @@
 import { db } from '../db/client'
 import { fetchExaNews } from '../adapters/exa'
 import { classifySentiment } from '../adapters/llm'
-import { createHash } from 'crypto'
 import { sleep } from '../utils/sleep'
-
-function hashUrl(url: string): string {
-  return createHash('sha256').update(url).digest('hex')
-}
+import { hashUrl } from '../utils/hash'
 
 export async function addCompetitor(
   companyId: string,

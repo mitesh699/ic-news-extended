@@ -1,69 +1,84 @@
 import { Link } from "react-router-dom";
-import { TrendingUp, TrendingDown, Minus, Activity, Building2, Newspaper, Swords } from "lucide-react";
+import { Building2, Newspaper, Swords } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { getTrendConfig } from "@/lib/sector-config";
+import { truncateSignal } from "@/lib/format-signal";
 import type { SectorBrief } from "@/types/company";
 
-const TREND_CONFIG = {
-  growing: { icon: TrendingUp, color: "text-signal-positive", label: "Growing" },
-  stable: { icon: Minus, color: "text-signal-neutral", label: "Stable" },
-  declining: { icon: TrendingDown, color: "text-signal-negative", label: "Declining" },
-  volatile: { icon: Activity, color: "text-accent", label: "Volatile" },
-} as const;
-
 export function SectorCard({ sector }: { sector: SectorBrief }) {
-  const trend = sector.metadata?.trendDirection ?? "stable";
-  const { icon: TrendIcon, color: trendColor, label: trendLabel } = TREND_CONFIG[trend];
+  const { icon: TrendIcon, color: trendColor, border: trendBorder, label: trendLabel } =
+    getTrendConfig(sector.metadata?.trendDirection);
+
+  const signals = sector.metadata?.topSignals ?? [];
 
   return (
-    <Link
-      to={`/sectors/${encodeURIComponent(sector.sector)}`}
-      className="group glass-card p-5 border border-border/40 hover:border-accent/30 transition-all block"
-    >
-      <div className="flex items-start justify-between mb-3">
-        <h3 className="text-[14px] font-bold text-foreground/85 group-hover:text-accent transition-colors">
-          {sector.sector}
-        </h3>
-        <div className={cn("flex items-center gap-1", trendColor)}>
-          <TrendIcon className="h-3.5 w-3.5" />
-          <span className="text-[8px] font-bold uppercase tracking-[0.1em]">{trendLabel}</span>
-        </div>
-      </div>
-
-      {sector.brief && (
-        <p className="text-[12px] text-muted-foreground/60 leading-[1.6] line-clamp-3 mb-4 headline-font-italic">
-          {sector.brief}
-        </p>
-      )}
-
-      {/* Signals */}
-      {sector.metadata?.topSignals && sector.metadata.topSignals.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-4">
-          {sector.metadata.topSignals.slice(0, 3).map((signal) => (
-            <span key={signal} className="text-[7px] px-1.5 py-0.5 bg-foreground/[0.04] text-muted-foreground/60 mono uppercase tracking-[0.1em]">
-              {signal}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Stats */}
-      <div className="flex items-center gap-4 pt-3 border-t border-border/30">
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
-          <Building2 className="h-2.5 w-2.5" /> {sector.companyCount}
-        </span>
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
-          <Newspaper className="h-2.5 w-2.5" /> {sector.articleCount}
-        </span>
-        <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
-          <Swords className="h-2.5 w-2.5" /> {sector.competitorCount}
-        </span>
-        {sector.generatedAt && (
-          <span className="text-[8px] text-muted-foreground/35 mono ml-auto">
-            {formatDistanceToNow(new Date(sector.generatedAt), { addSuffix: true })}
-          </span>
+    <motion.div whileHover={{ y: -3, transition: { duration: 0.18 } }}>
+      <Link
+        to={`/sectors/${encodeURIComponent(sector.sector)}`}
+        className={cn(
+          "group glass-card border-l-4 hover:border-accent/30 transition-colors block h-full",
+          trendBorder,
         )}
-      </div>
-    </Link>
+      >
+        {/* Card header */}
+        <div className="p-5 pb-4">
+          <div className="flex items-start justify-between mb-3">
+            <h3 className="text-[15px] font-bold tracking-[-0.01em] headline-font text-foreground/85 group-hover:text-accent transition-colors leading-[1.2]">
+              {sector.sector}
+            </h3>
+            <div className={cn("flex items-center gap-1 shrink-0 ml-3", trendColor)}>
+              <TrendIcon className="h-3 w-3" />
+              <span className="text-[8px] font-bold uppercase tracking-[0.12em]">{trendLabel}</span>
+            </div>
+          </div>
+
+          {sector.brief && (
+            <p className="text-[12px] text-foreground/55 leading-[1.65] line-clamp-3 headline-font-italic">
+              {sector.brief}
+            </p>
+          )}
+        </div>
+
+        {/* Signals */}
+        {signals.length > 0 && (
+          <div className="px-5 pb-4 flex flex-wrap gap-1.5">
+            {signals.slice(0, 2).map((sig, i) => (
+              <span
+                key={i}
+                className="text-[9px] px-2 py-1 bg-foreground/[0.04] border border-border/30 text-foreground/50 leading-[1.3] line-clamp-1 max-w-[200px]"
+              >
+                {truncateSignal(sig, 32)}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Stats footer */}
+        <div className="flex items-center gap-4 px-5 py-3 border-t border-border/25 bg-foreground/[0.01]">
+          <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+            <Building2 className="h-2.5 w-2.5" />
+            <span className="font-bold mono text-foreground/55">{sector.companyCount}</span>
+            <span className="uppercase tracking-[0.08em]">co.</span>
+          </span>
+          <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+            <Newspaper className="h-2.5 w-2.5" />
+            <span className="font-bold mono text-foreground/55">{sector.articleCount}</span>
+            <span className="uppercase tracking-[0.08em]">art.</span>
+          </span>
+          <span className="flex items-center gap-1 text-[9px] text-muted-foreground/50">
+            <Swords className="h-2.5 w-2.5" />
+            <span className="font-bold mono text-foreground/55">{sector.competitorCount}</span>
+            <span className="uppercase tracking-[0.08em]">comp.</span>
+          </span>
+          {sector.generatedAt && (
+            <span className="text-[8px] text-muted-foreground/30 mono ml-auto">
+              {formatDistanceToNow(new Date(sector.generatedAt), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+      </Link>
+    </motion.div>
   );
 }

@@ -24,13 +24,24 @@ function mapArticle(a: { id: string; title: string; source: string | null; url: 
   }
 }
 
-function serializeCompany(company: { id: string; name: string; logoUrl: string | null; sector: string | null; description: string | null; lastFetchedAt: Date | null; updatedAt: Date; articles: Parameters<typeof mapArticle>[0][]; summaries: { summaryText: string; metadata: string | null }[] }) {
+function parseFounders(raw: string | null): { name: string; role: string }[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch { return undefined; }
+}
+
+function serializeCompany(company: { id: string; name: string; logoUrl: string | null; sector: string | null; description: string | null; businessProfile?: string | null; founders?: string | null; status?: string; lastFetchedAt: Date | null; updatedAt: Date; articles: Parameters<typeof mapArticle>[0][]; summaries: { summaryText: string; metadata: string | null }[] }) {
   return {
     id: company.id,
     name: company.name,
     logo: company.logoUrl ?? undefined,
     sector: company.sector ?? '',
     description: company.description ?? '',
+    businessProfile: company.businessProfile ?? undefined,
+    founders: parseFounders(company.founders ?? null),
+    status: (company.status === 'exit' ? 'exit' : 'active') as 'active' | 'exit',
     summary: company.summaries[0]?.summaryText ?? '',
     summaryMeta: parseSummaryMeta(company.summaries[0]?.metadata),
     newsArticles: company.articles.map(mapArticle),

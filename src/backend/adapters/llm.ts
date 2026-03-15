@@ -13,9 +13,7 @@ function getOpenai(): OpenAI {
   return _openai
 }
 
-function stripMarkdownFences(text: string): string {
-  return text.replace(/^\s*```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '').trim()
-}
+import { stripMarkdownFences } from '../utils/parse-json'
 
 // ---------- Company Summary Prompt ----------
 // Dynamically built per-company with sector-specific guidance
@@ -212,28 +210,47 @@ export async function filterRelevantArticles(
   titles: string[],
   companyName: string,
   sector: string,
+  context?: { description?: string; businessProfile?: string; founders?: string },
 ): Promise<boolean[]> {
   if (titles.length === 0) return []
 
   const numbered = titles.map((t, i) => `${i + 1}. ${t.slice(0, 200)}`).join('\n')
 
-  const prompt = `Company: "${companyName}" | Sector: ${sector}
+  let founderLine = ''
+  if (context?.founders) {
+    try {
+      const parsed = JSON.parse(context.founders)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        founderLine = `Founded by: ${parsed.map((f: { name: string; role: string }) => `${f.name} (${f.role})`).join(', ')}`
+      }
+    } catch { /* ignore */ }
+  }
+
+  const companyContext = [
+    `Company: "${companyName}"`,
+    `Sector: ${sector}`,
+    context?.description ? `What they do: ${context.description}` : '',
+    context?.businessProfile ? `Business profile: ${context.businessProfile.slice(0, 300)}` : '',
+    founderLine,
+  ].filter(Boolean).join('\n')
+
+  const prompt = `${companyContext}
 
 Classify each article title as relevant (true) or irrelevant (false) to "${companyName}" specifically.
 
 RELEVANT (true):
-- Directly mentions or is about "${companyName}" by name
+- Directly mentions or is about "${companyName}" the company described above
 - Covers an event that materially impacts "${companyName}" (funding, acquisition, lawsuit, product launch, partnership, leadership change, competitor move in their direct market)
 - Industry/sector news that specifically names or directly affects "${companyName}"
 
 IRRELEVANT (false):
-- About a different company that shares similar keywords or operates in the same sector
+- About a DIFFERENT company, person, or entity that happens to share the name "${companyName}" but operates in a different domain than described above
 - Generic industry/sector news that does not name or single out "${companyName}"
-- About a person, place, or concept that happens to share the name "${companyName}"
+- About a person, place, product, or concept that happens to share the name "${companyName}" but is NOT the company described above
 - Listicles, roundups, or "top 10" articles where "${companyName}" is not the primary subject
 - News about a competitor unless it explicitly discusses impact on "${companyName}"
 
-When in doubt, mark false. Quality over quantity — we only want articles an investor tracking "${companyName}" would actually read.
+CRITICAL: Many company names are common words or shared by multiple entities. Use the business description above to determine if the article is about THIS specific "${companyName}" and not a namesake. When in doubt, mark false.
 
 ${numbered}`
 
