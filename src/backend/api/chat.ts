@@ -27,9 +27,10 @@ const chatBodySchema = z.object({
   agentMode: z.boolean().optional().default(false),
 })
 
-// --- Injection detection ---
+// --- Input guardrails (deterministic) ---
 
 const INJECTION_PATTERNS = [
+  // Prompt injection
   /ignore\s+(all\s+)?(previous|prior|above|earlier)\s+(instructions|rules|prompts)/i,
   /you\s+are\s+now\s+/i,
   /pretend\s+(you\s+are|to\s+be)\s+/i,
@@ -42,28 +43,180 @@ const INJECTION_PATTERNS = [
   /assistant\s*:\s*/i,
   /\[INST\]/i,
   /<<SYS>>/i,
+  // Prompt extraction
   /reveal\s+(your|the)\s+(system\s+)?(prompt|instructions)/i,
   /what\s+(are|is)\s+your\s+(system\s+)?(prompt|instructions|rules)/i,
   /repeat\s+(your|the)\s+(system\s+)?(prompt|instructions)/i,
   /output\s+(your|the)\s+(system\s+)?(prompt|instructions)/i,
+  /show\s+me\s+(your|the)\s+(system\s+)?(prompt|instructions|config)/i,
+  /print\s+(your|the)\s+(system\s+)?(prompt|instructions)/i,
+  // Code execution attempts
+  /\beval\s*\(/i,
+  /\bexec\s*\(/i,
+  /\bimport\s+os\b/i,
+  /\brequire\s*\(\s*['"]child_process/i,
+  /\b__proto__\b/i,
+  /\bconstructor\s*\[/i,
+  // Data exfiltration
+  /fetch\s*\(\s*['"]http/i,
+  /curl\s+/i,
+  /wget\s+/i,
+  /\bwindow\.\w+/i,
+  /\bdocument\.\w+/i,
 ]
+
+// Input content limits
+const MAX_MESSAGE_LENGTH = 1000
+const MAX_HISTORY_MESSAGES = 10
+const MAX_HISTORY_CONTENT_LENGTH = 2000
+
+function validateInput(message: string): { valid: boolean; reason?: string } {
+  // Length check
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return { valid: false, reason: 'Message too long' }
+  }
+
+  // Control character check (beyond basic whitespace)
+  if (/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/.test(message)) {
+    return { valid: false, reason: 'Invalid characters detected' }
+  }
+
+  // Excessive repetition (spam / token stuffing)
+  if (/(.)\1{20,}/.test(message)) {
+    return { valid: false, reason: 'Repetitive content detected' }
+  }
+
+  // Too many special characters (obfuscation attempt)
+  const specialRatio = (message.match(/[^a-zA-Z0-9\s.,!?'"()\-]/g) || []).length / Math.max(message.length, 1)
+  if (specialRatio > 0.5 && message.length > 20) {
+    return { valid: false, reason: 'Suspicious character pattern' }
+  }
+
+  // Injection patterns
+  if (INJECTION_PATTERNS.some(p => p.test(message))) {
+    return { valid: false, reason: 'Blocked input pattern' }
+  }
+
+  return { valid: true }
+}
 
 // --- Output sanitization ---
 
-function sanitize(text: string): string {
-  let cleaned = text.replace(/<[^>]*>/g, '').slice(0, 2000)
+// --- Output guardrails (deterministic) ---
 
-  // Redact PII that may leak from source data
+// Patterns that should NEVER appear in chat output
+const OUTPUT_BLOCK_PATTERNS = [
+  /<!DOCTYPE/i,
+  /<html[\s>]/i,
+  /<head[\s>]/i,
+  /<body[\s>]/i,
+  /<script[\s>]/i,
+  /<style[\s>]/i,
+  /font-family\s*:/i,
+  /background-color\s*:/i,
+  /text-align\s*:/i,
+  /border-collapse\s*:/i,
+  /padding\s*:\s*\d/i,
+  /margin\s*:\s*\d/i,
+  /class\s*=\s*"/i,
+  /style\s*=\s*"/i,
+  /onclick\s*=/i,
+  /https:\/\/quickchart\.io/i,
+]
+
+// System prompt fragments that indicate leakage
+const LEAK_PATTERNS = [
+  'NON-NEGOTIABLE',
+  'STRICTLY ENFORCED',
+  'OUTPUT GUARDRAILS',
+  'INPUT HANDLING',
+  'SECURITY —',
+  'TOOL USE PRIORITY',
+  'RESPONSE GUIDELINES',
+  'OUTPUT FORMAT — CRITICAL',
+  'NEVER output:',
+  '<user_question>',
+  'UNTRUSTED input',
+]
+
+function sanitize(text: string): string {
+  // 1. Detect if response is mostly HTML — replace with fallback entirely
+  const htmlTagCount = (text.match(/<\/?[a-z][^>]*>/gi) || []).length
+  if (htmlTagCount > 10) {
+    // Extract any plain text content from the HTML mess
+    const plainText = text
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+    if (plainText.length > 50) {
+      return plainText.slice(0, 3000)
+    }
+    return "I've generated the report. You can request it via email using the send_email tool, or ask me to summarize the key findings."
+  }
+
+  let cleaned = text
+
+  // 2. Strip remaining HTML tags
+  cleaned = cleaned
+    .replace(/<!DOCTYPE[^>]*>/gi, '')
+    .replace(/<(html|head|body|style|script|meta|link|title)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<\/?(html|head|body|style|script|meta|link|title|div|span|table|thead|tbody|tfoot|tr|th|td|img|br|hr|a)[^>]*>/gi, '')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s{3,}/g, '\n\n')
+    .trim()
+
+  // 3. Block specific dangerous patterns
+  if (OUTPUT_BLOCK_PATTERNS.some(p => p.test(cleaned))) {
+    cleaned = cleaned
+      .replace(/<[^>]*>/g, '')
+      .replace(/style\s*=\s*"[^"]*"/gi, '')
+      .replace(/class\s*=\s*"[^"]*"/gi, '')
+      .replace(/https:\/\/quickchart\.io[^\s)"]*/g, '[chart generated]')
+      .trim()
+  }
+
+  // 4. CSS residue detection — if response has too many CSS-like patterns
+  if ((cleaned.match(/[{}:;]/g) || []).length > 15) {
+    cleaned = cleaned
+      .replace(/\{[^}]*\}/g, '')
+      .replace(/[a-z-]+\s*:\s*[^;\n]+;/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+  }
+
+  // 5. Cap length
+  cleaned = cleaned.slice(0, 3000)
+
+  // 6. Redact PII
   cleaned = cleaned
     .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[email redacted]')
     .replace(/(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[phone redacted]')
+    .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN redacted]')
+    .replace(/\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g, '[card redacted]')
 
-  // Detect system prompt leakage
-  const leakPatterns = ['NON-NEGOTIABLE', 'STRICTLY ENFORCED', 'OUTPUT GUARDRAILS', 'INPUT HANDLING', 'SECURITY —']
-  if (leakPatterns.some((p) => cleaned.includes(p))) {
+  // 7. System prompt leak detection
+  if (LEAK_PATTERNS.some(p => cleaned.includes(p))) {
     return "I'm a portfolio intelligence assistant. I can help with questions about Initialized Capital's portfolio companies."
   }
 
+  // 8. Final check — if result is empty after all stripping
+  if (cleaned.length < 5) {
+    return "I've processed your request. Could you rephrase what you'd like to know about the portfolio?"
+  }
+
+  return cleaned
+}
+
+// Streaming chunk sanitizer — lightweight for token-by-token output
+function sanitizeChunk(text: string): string {
+  let cleaned = text.replace(/<[^>]*>/g, '')
+  // Block inline CSS/HTML attributes
+  cleaned = cleaned.replace(/style\s*=\s*"[^"]*"/gi, '')
+  cleaned = cleaned.replace(/class\s*=\s*"[^"]*"/gi, '')
+  // Block QuickChart URLs mid-stream
+  cleaned = cleaned.replace(/https:\/\/quickchart\.io[^\s)"]*/g, '')
   return cleaned
 }
 
@@ -216,7 +369,6 @@ chat.post('/', async (c) => {
 
   const { message: rawMessage, companyId, history, agentMode } = parsed.data
 
-  // Sanitize input
   const sanitizedMessage = rawMessage
     .replace(/<[^>]*>/g, '')
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
@@ -227,7 +379,8 @@ chat.post('/', async (c) => {
     return c.json({ error: 'Message is empty after sanitization', code: 'VALIDATION_ERROR' }, 400)
   }
 
-  if (INJECTION_PATTERNS.some((pattern) => pattern.test(sanitizedMessage))) {
+  const inputCheck = validateInput(sanitizedMessage)
+  if (!inputCheck.valid) {
     return c.json({
       response: "I can only help with questions about Initialized Capital's portfolio companies and related news. Could you rephrase your question about a portfolio company?",
       followUps: ['Portfolio health check', 'Any breaking news?', 'Sector overview'],
@@ -323,7 +476,8 @@ chat.post('/stream', async (c) => {
     return c.json({ error: 'Message is empty', code: 'VALIDATION_ERROR' }, 400)
   }
 
-  if (INJECTION_PATTERNS.some((pattern) => pattern.test(sanitizedMessage))) {
+  const streamInputCheck = validateInput(sanitizedMessage)
+  if (!streamInputCheck.valid) {
     return c.json({
       response: "I can only help with questions about Initialized Capital's portfolio companies.",
       followUps: ['Portfolio health check', 'Any breaking news?'],
@@ -358,8 +512,11 @@ chat.post('/stream', async (c) => {
       for await (const chunk of result.fullStream) {
         const payload = (chunk as Record<string, unknown>).payload as Record<string, unknown> | undefined ?? chunk as Record<string, unknown>
         if (chunk.type === 'text-delta') {
+          const rawText = String(payload.text ?? payload.textDelta ?? '')
+          const cleanText = sanitizeChunk(rawText)
+          if (!cleanText) continue
           await stream.writeSSE({
-            data: JSON.stringify({ text: payload.text ?? payload.textDelta ?? '' }),
+            data: JSON.stringify({ text: cleanText }),
             event: 'text-delta',
             id: String(eventId++),
           })
@@ -395,5 +552,8 @@ chat.post('/stream', async (c) => {
     }
   })
 })
+
+// Export guardrail functions for testing
+export { validateInput, sanitize, sanitizeChunk }
 
 export default chat
