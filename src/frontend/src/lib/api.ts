@@ -138,3 +138,27 @@ export async function fetchSectorBrief(sector: string): Promise<SectorBrief> {
   if (!res.ok) throw new Error("Failed to fetch sector brief");
   return res.json();
 }
+
+export interface SignalHeatmapRow {
+  sector: string;
+  signals: Record<string, number>;
+}
+
+export interface SentimentTrendPoint {
+  date: string;
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
+export async function fetchSignalHeatmap(): Promise<SignalHeatmapRow[]> {
+  const res = await fetch(`${API_BASE_URL}/analytics/signals`);
+  if (!res.ok) throw new Error("Failed to fetch signal heatmap");
+  return res.json();
+}
+
+export async function fetchSentimentTrend(): Promise<SentimentTrendPoint[]> {
+  const res = await fetch(`${API_BASE_URL}/analytics/sentiment-trend`);
+  if (!res.ok) throw new Error("Failed to fetch sentiment trend");
+  return res.json();
+}

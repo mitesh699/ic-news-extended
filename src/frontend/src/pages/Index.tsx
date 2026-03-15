@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, Search, Zap, TrendingUp, TrendingDown, Minus, Newspaper, AlertCircle, ArrowUpRight, Building2 } from "lucide-react";
+import { RefreshCw, Search, Zap, TrendingUp, TrendingDown, Minus, Newspaper, AlertCircle, ArrowUpRight, Building2, ChevronDown, BarChart3 } from "lucide-react";
 import { formatDistanceToNow, format, differenceInDays } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NewsItem, getTimeFilter } from "@/components/NewsItem";
 import { PageTransition } from "@/components/PageTransition";
 import { NotificationBell } from "@/components/NotificationBell";
+import { SignalHeatmap } from "@/components/SignalHeatmap";
+import { SentimentTrend } from "@/components/SentimentTrend";
 import { useCompanies, useRefreshNews } from "@/hooks/useCompanies";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useSignalHeatmap, useSentimentTrend } from "@/hooks/useAnalytics";
 import type { DateFilter, SignalFilter } from "@/types/company";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +71,9 @@ const Index = () => {
   const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const { data: signalData } = useSignalHeatmap();
+  const { data: sentimentData } = useSentimentTrend();
 
   // Sync signal filter from URL params (e.g. /?signal=breaking)
   useEffect(() => {
@@ -182,6 +188,51 @@ const Index = () => {
 
       {/* Ticker */}
       <TickerBar breakingNews={breakingNews} />
+
+      {/* Analytics section */}
+      {!isLoading && (signalData?.length || sentimentData?.length) && (
+        <div className="border-b border-border/40">
+          <div className="max-w-[1440px] mx-auto px-4">
+            <button
+              onClick={() => setAnalyticsOpen((o) => !o)}
+              className="flex items-center gap-2 py-3 w-full text-left group"
+            >
+              <BarChart3 className="h-3 w-3 text-muted-foreground/50" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60 group-hover:text-foreground transition-colors">
+                Analytics
+              </span>
+              <ChevronDown
+                className={cn(
+                  "h-3 w-3 text-muted-foreground/40 transition-transform duration-200",
+                  analyticsOpen && "rotate-180"
+                )}
+              />
+            </button>
+            <AnimatePresence initial={false}>
+              {analyticsOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
+                  className="overflow-hidden"
+                >
+                  <div className="grid md:grid-cols-2 gap-6 pb-6">
+                    <div className="glass-card p-4">
+                      <p className="section-label mb-3">Signal Heatmap by Sector</p>
+                      <SignalHeatmap data={signalData ?? []} />
+                    </div>
+                    <div className="glass-card p-4">
+                      <p className="section-label mb-3">Sentiment Trend (7 days)</p>
+                      <SentimentTrend data={sentimentData ?? []} />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       {/* Error Banner */}
       {error && (

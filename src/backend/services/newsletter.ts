@@ -25,8 +25,9 @@ const EMAIL_STYLES = `
 </style>
 `
 
-function markdownToEmailHtml(md: string): string {
+function markdownToEmailHtml(md: string, variant: 'weekly' | 'daily' = 'weekly'): string {
   const bodyHtml = marked.parse(md, { async: false }) as string
+  const label = variant === 'daily' ? 'daily digest' : 'weekly digest'
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,7 +38,7 @@ ${bodyHtml}
 </div>
 <div class="footer">
   Initialized Capital Portfolio Intelligence<br>
-  You're receiving this because you subscribed to the weekly digest.
+  You're receiving this because you subscribed to the ${label}.
 </div>
 </body></html>`
 }
@@ -119,5 +120,82 @@ export async function sendWeeklyNewsletter(): Promise<{ sent: number; error?: st
   }
 
   console.log(`[newsletter] Sent to ${totalSent}/${subscribers.length} subscribers`)
+  return { sent: totalSent }
+}
+
+export async function sendDailyDigestEmail(): Promise<{ sent: number; error?: string }> {
+  const apiKey = process.env.RESEND_API_KEY
+  const from = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
+  if (!apiKey) return { sent: 0, error: 'RESEND_API_KEY not configured' }
+
+  const subscribers = await db.newsletterSubscriber.findMany({
+    where: { active: true, frequency: 'daily' },
+    select: { email: true },
+  })
+
+  if (subscribers.length === 0) {
+    console.log('[newsletter] No active daily subscribers')
+    return { sent: 0, error: 'No subscribers' }
+  }
+
+  console.log('[newsletter] Generating daily digest via agent...')
+  const messages: CoreMessage[] = [
+    {
+      role: 'user',
+      content: 'Draft a short daily portfolio digest using draft_newsletter with days_back=1. Focus only on top signals and risk flags from the last 24 hours. Skip full company briefs and sector trends. Keep it concise — bullet points only. Return clean markdown, no HTML.',
+    },
+  ]
+
+  let html: string
+  try {
+    const result = await portfolioAgent.generate(messages, { maxSteps: 5 })
+    const text = await result.text
+
+    if (!text || text.length < 30) {
+      return { sent: 0, error: 'Agent returned empty content' }
+    }
+
+    if (text.includes('<html') || text.includes('<!DOCTYPE')) {
+      const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
+      const content = bodyMatch ? bodyMatch[1] : text.replace(/<[^>]+>/g, '')
+      html = markdownToEmailHtml(content, 'daily')
+    } else {
+      html = markdownToEmailHtml(text, 'daily')
+    }
+  } catch (err) {
+    console.error('[newsletter] Daily digest agent failed:', err instanceof Error ? err.message : String(err))
+    return { sent: 0, error: 'Agent generation failed' }
+  }
+
+  const dateStr = new Date().toISOString().slice(0, 10)
+  const subject = `Initialized Portfolio Daily — ${dateStr}`
+  let totalSent = 0
+
+  for (let i = 0; i < subscribers.length; i += 100) {
+    const batch = subscribers.slice(i, i + 100)
+    try {
+      const res = await fetch('https://api.resend.com/emails/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(
+          batch.map(s => ({ from, to: s.email, subject, html }))
+        ),
+      })
+
+      if (res.ok) {
+        totalSent += batch.length
+      } else {
+        const body = await res.text()
+        console.error(`[newsletter] Daily digest Resend batch error: ${res.status} ${body}`)
+      }
+    } catch (err) {
+      console.error('[newsletter] Daily digest Resend request failed:', err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  console.log(`[newsletter] Daily digest sent to ${totalSent}/${subscribers.length} subscribers`)
   return { sent: totalSent }
 }

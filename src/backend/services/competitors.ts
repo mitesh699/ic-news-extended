@@ -1,8 +1,11 @@
 import { db } from '../db/client'
 import { fetchExaNews } from '../adapters/exa'
-import { classifySentiment } from '../adapters/llm'
+import { classifySentiment, getAnthropic } from '../adapters/llm'
 import { sleep } from '../utils/sleep'
 import { hashUrl } from '../utils/hash'
+
+type Signal = 'funding' | 'hiring' | 'product' | 'regulatory' | 'M&A' | 'risk' | 'partnership'
+const VALID_SIGNALS: Signal[] = ['funding', 'hiring', 'product', 'regulatory', 'M&A', 'risk', 'partnership']
 
 export async function addCompetitor(
   companyId: string,
@@ -63,7 +66,14 @@ export async function fetchNewsForCompetitor(competitorId: string): Promise<numb
     sector
   )
 
-  const data = articles.slice(0, 8).map((article, i) => {
+  const sliced = articles.slice(0, 8)
+  const signals = await Promise.all(
+    sliced.map((article, i) =>
+      detectSignal(article.title, sentimentResults[i]?.summary || article.summary)
+    )
+  )
+
+  const data = sliced.map((article, i) => {
     const sent = sentimentResults[i]
     const hostname = article.source || ''
     return {
@@ -76,7 +86,7 @@ export async function fetchNewsForCompetitor(competitorId: string): Promise<numb
       publishedAt: article.publishedAt,
       urlHash: hashUrl(article.url),
       sentiment: sent.sentiment,
-      signal: detectSignal(article.title),
+      signal: signals[i],
     }
   })
 
@@ -96,7 +106,7 @@ function formatSourceName(hostname: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-function detectSignal(title: string): string | null {
+function detectSignalRegex(title: string): Signal | null {
   const lower = title.toLowerCase()
   if (/\b(raise[ds]?|funding|series [a-z]|seed|ipo|valuation)\b/.test(lower)) return 'funding'
   if (/\b(hiring|hire[ds]?|headcount|recruit|layoff|laid off)\b/.test(lower)) return 'hiring'
@@ -104,6 +114,41 @@ function detectSignal(title: string): string | null {
   if (/\b(regulat|comply|compliance|fda|sec |ftc|doj|antitrust)\b/.test(lower)) return 'regulatory'
   if (/\b(acqui|merger|buyout|m&a|takeover)\b/.test(lower)) return 'M&A'
   if (/\b(breach|hack|lawsuit|shutdown|bankruptcy|layoff)\b/.test(lower)) return 'risk'
+  if (/\b(partner|partnership|collaborat|alliance|joint venture)\b/.test(lower)) return 'partnership'
+  return null
+}
+
+async function detectSignalLLM(title: string, summary: string): Promise<Signal | null> {
+  try {
+    const response = await getAnthropic().messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 50,
+      messages: [{
+        role: 'user',
+        content: `Classify this article into exactly one signal type or "none".\nValid signals: funding, hiring, product, regulatory, M&A, risk, partnership\n\nTitle: ${title}\nSummary: ${summary}\n\nRespond with a single word only.`,
+      }],
+    })
+
+    const text = response.content[0].type === 'text'
+      ? response.content[0].text.trim().toLowerCase()
+      : ''
+
+    const normalized = text === 'm&a' ? 'M&A' : text
+    if (VALID_SIGNALS.includes(normalized as Signal)) return normalized as Signal
+  } catch {
+    // LLM unavailable — fall through
+  }
+  return null
+}
+
+async function detectSignal(title: string, summary?: string): Promise<Signal | null> {
+  const regexResult = detectSignalRegex(title)
+  if (regexResult) return regexResult
+
+  if (summary && process.env.ANTHROPIC_API_KEY) {
+    return detectSignalLLM(title, summary)
+  }
+
   return null
 }
 

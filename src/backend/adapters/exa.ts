@@ -67,8 +67,9 @@ export async function fetchExaNews(query: string, daysBack = 180): Promise<Fetch
     .map((r) => {
       const pubDate = r.publishedDate ? new Date(r.publishedDate) : null
       const highlight = (r as Record<string, unknown>).highlights
-      const summary = Array.isArray(highlight) && highlight.length > 0
-        ? String(highlight[0])
+      const highlightsArr = Array.isArray(highlight) ? highlight.map(String) : undefined
+      const summary = highlightsArr && highlightsArr.length > 0
+        ? highlightsArr[0]
         : undefined
       return {
         title: r.title || query,
@@ -76,6 +77,7 @@ export async function fetchExaNews(query: string, daysBack = 180): Promise<Fetch
         source: new URL(r.url).hostname.replace('www.', ''),
         publishedAt: pubDate && pubDate > cutoff ? pubDate : null,
         summary,
+        highlights: highlightsArr,
       }
     })
 }

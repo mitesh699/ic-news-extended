@@ -247,6 +247,7 @@ export async function fetchNewsForCompany(
       url: article.url,
       source: article.source,
       summary: sentiment.summary || article.summary || null,
+      highlights: article.highlights ? JSON.stringify(article.highlights) : null,
       publishedAt: article.publishedAt,
       urlHash: hashUrl(article.url),
       sentiment: sentiment.sentiment,
