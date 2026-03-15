@@ -253,7 +253,10 @@ function generateFollowUps(steps: ToolStep[]): string[] {
     suggestions.push('What caused the shift?', 'Compare with sector peers')
   }
   if (usedTools.has('draft_newsletter')) {
-    suggestions.push('Send this as an email', 'Generate charts for the digest')
+    suggestions.push('Send this as an email', 'Download as PDF report')
+  }
+  if (usedTools.has('generate_pdf_report')) {
+    suggestions.push('Email this report', 'Show portfolio health')
   }
 
   if (suggestions.length === 0) {
