@@ -2,6 +2,7 @@ import { useState } from "react";
 import { LayoutDashboard, Building2, Activity, Bell, Mail, Check } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useCompanies } from "@/hooks/useCompanies";
+import { subscribeNewsletter } from "@/lib/api";
 import {
   Sidebar,
   SidebarContent,
@@ -24,11 +25,20 @@ export function AppSidebar() {
   const [frequency, setFrequency] = useState<"daily" | "weekly">("daily");
   const [subscribed, setSubscribed] = useState(false);
 
-  const handleSubscribe = () => {
+  const [subError, setSubError] = useState("");
+
+  const handleSubscribe = async () => {
     if (!subscribeEmail.trim()) return;
-    // UI-only for now — will wire to backend
-    setSubscribed(true);
-    setTimeout(() => setSubscribed(false), 3000);
+    setSubError("");
+    try {
+      await subscribeNewsletter(subscribeEmail, frequency);
+      setSubscribed(true);
+      setSubscribeEmail("");
+      setTimeout(() => setSubscribed(false), 3000);
+    } catch {
+      setSubError("Failed to subscribe");
+      setTimeout(() => setSubError(""), 3000);
+    }
   };
 
   return (
@@ -145,7 +155,12 @@ export function AppSidebar() {
                 </div>
                 {subscribed && (
                   <p className="text-[9px] text-signal-positive font-bold uppercase tracking-[0.1em]">
-                    ✓ Subscribed!
+                    Subscribed!
+                  </p>
+                )}
+                {subError && (
+                  <p className="text-[9px] text-signal-negative font-bold uppercase tracking-[0.1em]">
+                    {subError}
                   </p>
                 )}
               </div>

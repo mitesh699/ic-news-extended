@@ -28,6 +28,7 @@ import sectorsApi from './api/sectors'
 import refresh from './api/refresh'
 import chat from './api/chat'
 import webhooks from './api/webhooks'
+import newsletterApi from './api/newsletter'
 import events, { broadcastSSE } from './api/events'
 import { rateLimiter } from './middleware/rate-limit'
 import { fetchNewsForAllCompanies } from './services/news'
@@ -97,6 +98,7 @@ app.use('/api/chat', csrf({ origin: origins }))
 app.use('/api/chat', rateLimiter({ windowMs: 60_000, max: 10 }))
 app.use('/api/companies', rateLimiter({ windowMs: 60_000, max: 60 }))
 app.use('/api/sectors', rateLimiter({ windowMs: 60_000, max: 30 }))
+app.use('/api/newsletter', rateLimiter({ windowMs: 60_000, max: 5 }))
 app.use('/api/refresh', rateLimiter({ windowMs: 600_000, max: 2 }))
 
 // Routes
@@ -107,6 +109,7 @@ app.route('/api/sectors', sectorsApi)
 app.route('/api/refresh', refresh)
 app.route('/api/chat', chat)
 app.route('/api/webhooks', webhooks)
+app.route('/api/newsletter', newsletterApi)
 app.route('/api/events', events)
 
 // Root — minimal response, no version info

@@ -7,18 +7,10 @@ export async function sendWeeklyNewsletter(): Promise<{ sent: number; error?: st
   const from = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'
   if (!apiKey) return { sent: 0, error: 'RESEND_API_KEY not configured' }
 
-  // Check for subscribers (NewsletterSubscriber table may not exist yet)
-  let subscribers: { email: string }[] = []
-  try {
-    subscribers = await (db as unknown as { newsletterSubscriber: { findMany: (args: unknown) => Promise<{ email: string }[]> } }).newsletterSubscriber.findMany({
-      where: { active: true, frequency: 'weekly' },
-      select: { email: true },
-    })
-  } catch {
-    // Table doesn't exist yet — send to fallback if RESEND_FROM_EMAIL is set
-    console.log('[newsletter] No subscriber table yet, skipping')
-    return { sent: 0, error: 'No subscriber table' }
-  }
+  const subscribers = await db.newsletterSubscriber.findMany({
+    where: { active: true, frequency: 'weekly' },
+    select: { email: true },
+  })
 
   if (subscribers.length === 0) {
     console.log('[newsletter] No active weekly subscribers')

@@ -147,6 +147,18 @@ model SectorBrief {
   @@index([generatedAt])
 }
 
+// ─── Newsletter Subscribers ───
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  frequency String   @default("daily") // "daily" | "weekly"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([active, frequency])
+}
+
 // ─── Webhooks ───
 model Webhook {
   id        String   @id @default(cuid())

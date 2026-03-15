@@ -105,6 +105,20 @@ export async function streamChatMessage(
   }
 }
 
+// Newsletter
+export async function subscribeNewsletter(
+  email: string,
+  frequency: "daily" | "weekly" = "daily"
+): Promise<{ subscribed: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/newsletter/subscribe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, frequency }),
+  });
+  if (!res.ok) throw new Error("Subscribe failed");
+  return res.json();
+}
+
 // Competitors
 export async function fetchCompetitors(companyId: string): Promise<Competitor[]> {
   const res = await fetch(`${API_BASE_URL}/companies/${companyId}/competitors`);
