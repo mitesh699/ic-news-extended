@@ -103,7 +103,7 @@ const Companies = () => {
         if (sortBy === "recent") return new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime();
         return a.name.localeCompare(b.name);
       });
-  }, [companies, search, sector, sortBy]);
+  }, [companies, search, sector, statusFilter, sortBy]);
 
   // Virtual grid setup
   const gridRef = useRef<HTMLDivElement>(null);
