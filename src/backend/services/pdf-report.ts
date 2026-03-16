@@ -175,6 +175,17 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
     drawRule()
   }
 
+  /** Add a page break only if less than `minSpace` px remain */
+  function ensureSpace(minSpace = 120) {
+    if (doc.y > 742 - minSpace) doc.addPage()
+  }
+
+  function sectionBreak(title: string) {
+    ensureSpace(160)
+    doc.moveDown(1.5)
+    sectionHeader(title)
+  }
+
   // ══════════════════════════════════════════
   // PAGE 1: Header + Charts
   // ══════════════════════════════════════════
@@ -203,10 +214,9 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   }
 
   // ══════════════════════════════════════════
-  // PAGE 2: Executive Summary (Fix #4)
+  // Executive Summary
   // ══════════════════════════════════════════
-  doc.addPage()
-  sectionHeader('Executive Summary')
+  sectionBreak('Executive Summary')
 
   doc.fontSize(12).fillColor(GRAY).font('Helvetica')
 
@@ -241,10 +251,9 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   doc.moveDown(1)
 
   // ══════════════════════════════════════════
-  // PAGE 3: Top Signals (deduplicated)
+  // Top Signals (deduplicated)
   // ══════════════════════════════════════════
-  doc.addPage()
-  sectionHeader('Top Signals')
+  sectionBreak('Top Signals')
 
   if (topSignals.length === 0) {
     doc.fontSize(12).fillColor(GRAY).font('Helvetica').text('No breaking or negative signals in this period.')
@@ -262,8 +271,7 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   // ══════════════════════════════════════════
   // Company Briefs (material only)
   // ══════════════════════════════════════════
-  doc.addPage()
-  sectionHeader(`Company Briefs (${summaryByCompany.size} with material news)`)
+  sectionBreak(`Company Briefs (${summaryByCompany.size} with material news)`)
 
   if (summaryByCompany.size === 0) {
     doc.fontSize(12).fillColor(GRAY).font('Helvetica').text('No summaries generated in this period.')
@@ -283,8 +291,7 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   // ══════════════════════════════════════════
   // Sector Overview
   // ══════════════════════════════════════════
-  doc.addPage()
-  sectionHeader('Sector Overview')
+  sectionBreak('Sector Overview')
 
   const sorted = [...sectorCounts.entries()].sort((a, b) => b[1] - a[1])
   doc.fontSize(11).fillColor('#334155').font('Helvetica-Bold')
@@ -307,8 +314,7 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   // ══════════════════════════════════════════
   if (options.customSections?.length) {
     for (const section of options.customSections) {
-      doc.addPage()
-      sectionHeader(section.title)
+      sectionBreak(section.title)
       doc.fontSize(11).fillColor(GRAY).font('Helvetica')
       const lines = section.content.split('\n')
       for (const line of lines) {
