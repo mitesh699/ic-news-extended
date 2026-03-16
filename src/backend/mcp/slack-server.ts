@@ -166,18 +166,34 @@ server.tool(
 
 server.tool(
   'upload_pdf_report',
-  'Generate a portfolio intelligence PDF report with charts and upload it directly to the Slack channel as a file attachment.',
+  'Generate a dynamic PDF report and upload it to Slack. Pass company_names or sectors to scope the report. Use title/subtitle for custom headers and custom_sections for agent-composed analysis.',
   {
     channel: z.string().describe('Channel ID to upload to'),
     days_back: z.number().min(1).max(90).default(7).describe('Number of days to cover'),
     message: z.string().default('').describe('Optional message to accompany the file'),
+    company_names: z.array(z.string()).optional().describe('Filter to specific companies'),
+    sectors: z.array(z.string()).optional().describe('Filter to specific sectors'),
+    title: z.string().optional().describe('Custom report title'),
+    subtitle: z.string().optional().describe('Custom subtitle'),
+    custom_sections: z.array(z.object({
+      title: z.string(),
+      content: z.string(),
+    })).optional().describe('Agent-composed analysis sections'),
   },
-  async ({ channel, days_back, message }) => {
+  async ({ channel, days_back, message, company_names, sectors, title, subtitle, custom_sections }) => {
     // Dynamic import — this runs as a child process, so we load on demand
     const { generatePortfolioPDF } = await import('../services/pdf-report.js')
-    const pdfBuffer = await generatePortfolioPDF({ daysBack: days_back })
+    const pdfBuffer = await generatePortfolioPDF({
+      daysBack: days_back,
+      companyNames: company_names,
+      sectors,
+      title,
+      subtitle,
+      customSections: custom_sections,
+    })
     const dateStr = new Date().toISOString().slice(0, 10)
-    const filename = `portfolio-report-${dateStr}.pdf`
+    const reportLabel = title ?? 'portfolio-report'
+    const filename = `${reportLabel.toLowerCase().replace(/\s+/g, '-')}-${dateStr}.pdf`
 
     const token = process.env.SLACK_BOT_TOKEN
     if (!token) throw new Error('SLACK_BOT_TOKEN not set')

@@ -8,8 +8,18 @@ import {
 } from './chart-renderer'
 import { parseJsonResponse } from '../utils/parse-json'
 
+interface CustomSection {
+  title: string
+  content: string
+}
+
 interface PDFOptions {
   daysBack?: number
+  companyNames?: string[]
+  sectors?: string[]
+  title?: string
+  subtitle?: string
+  customSections?: CustomSection[]
 }
 
 const BLUE = '#1e40af'
@@ -23,18 +33,34 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   const since = new Date()
   since.setDate(since.getDate() - daysBack)
 
+  const companyFilter: Record<string, unknown> = {}
+  if (options.companyNames?.length) {
+    companyFilter.name = { in: options.companyNames, mode: 'insensitive' }
+  }
+  if (options.sectors?.length) {
+    companyFilter.sector = { in: options.sectors, mode: 'insensitive' }
+  }
+  const hasFilter = Object.keys(companyFilter).length > 0
+
   const [articles, summaries, companies] = await Promise.all([
     db.article.findMany({
-      where: { fetchedAt: { gte: since } },
+      where: {
+        fetchedAt: { gte: since },
+        ...(hasFilter ? { company: companyFilter } : {}),
+      },
       orderBy: { fetchedAt: 'desc' },
       include: { company: { select: { name: true, sector: true } } },
     }),
     db.summary.findMany({
-      where: { generatedAt: { gte: since } },
+      where: {
+        generatedAt: { gte: since },
+        ...(hasFilter ? { company: companyFilter } : {}),
+      },
       orderBy: { generatedAt: 'desc' },
       include: { company: { select: { name: true, sector: true } } },
     }),
     db.company.findMany({
+      where: hasFilter ? companyFilter : undefined,
       select: { id: true, name: true, sector: true },
     }),
   ])
@@ -152,8 +178,10 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
   // ══════════════════════════════════════════
   // PAGE 1: Header + Charts
   // ══════════════════════════════════════════
-  doc.fontSize(22).font('Helvetica-Bold').fillColor(DARK).text('Initialized Capital', { align: 'center' })
-  doc.fontSize(14).font('Helvetica').fillColor(GRAY).text('Portfolio Intelligence Report', { align: 'center' })
+  const reportTitle = options.title || 'Initialized Capital'
+  const reportSubtitle = options.subtitle || 'Portfolio Intelligence Report'
+  doc.fontSize(22).font('Helvetica-Bold').fillColor(DARK).text(reportTitle, { align: 'center' })
+  doc.fontSize(14).font('Helvetica').fillColor(GRAY).text(reportSubtitle, { align: 'center' })
   doc.fontSize(10).fillColor(LIGHT_GRAY).text(
     `Generated ${dateStr} | Last ${daysBack} days | ${articles.length} articles | ${companies.length} companies`,
     { align: 'center' }
@@ -272,6 +300,35 @@ export async function generatePortfolioPDF(options: PDFOptions = {}): Promise<Bu
     doc.text(sector, 50, doc.y)
     doc.text(String(count), 400, doc.y - 11, { width: 100, align: 'right' })
     doc.moveDown(0.3)
+  }
+
+  // ══════════════════════════════════════════
+  // Custom Sections (agent-provided analysis)
+  // ══════════════════════════════════════════
+  if (options.customSections?.length) {
+    for (const section of options.customSections) {
+      doc.addPage()
+      sectionHeader(section.title)
+      doc.fontSize(11).fillColor(GRAY).font('Helvetica')
+      const lines = section.content.split('\n')
+      for (const line of lines) {
+        if (doc.y > 700) doc.addPage()
+        if (line.startsWith('## ')) {
+          doc.moveDown(0.5)
+          doc.fontSize(13).fillColor(DARK).font('Helvetica-Bold').text(line.slice(3))
+          doc.moveDown(0.3)
+        } else if (line.startsWith('- ') || line.startsWith('* ')) {
+          doc.fontSize(11).fillColor(DARK).font('Helvetica-Bold').text('  •  ', { continued: true })
+          doc.font('Helvetica').fillColor(GRAY).text(line.slice(2))
+          doc.moveDown(0.2)
+        } else if (line.trim() === '') {
+          doc.moveDown(0.4)
+        } else {
+          doc.fontSize(11).fillColor(GRAY).font('Helvetica').text(line)
+          doc.moveDown(0.2)
+        }
+      }
+    }
   }
 
   // ── Footer ──

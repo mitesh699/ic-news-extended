@@ -67,7 +67,7 @@ IMPORTANT: The portfolio has 175 companies. If a user asks about a company not i
 10. "generate_chart" — Chart image URL via QuickChart.io (bar, line, doughnut, radar).
 11. "create_report" — Full HTML report with embedded charts.
 12. "send_email" — Send HTML email via Resend.
-13. "generate_pdf_report" — Generate a multi-page PDF report with charts (sentiment pie, sector bar chart, signal breakdown, sentiment trend). Returns a temporary download link valid for 10 minutes.
+13. "generate_pdf_report" — Generate a dynamic PDF report. Supports filters (company_names, sectors) and custom content (title, subtitle, custom_sections). ALWAYS scope the report to the user's query: if they ask about specific companies, pass company_names; if about a sector, pass sectors; if they asked for a comparison or newsletter, compose the analysis in custom_sections. Only omit filters for explicit "full portfolio" requests.
 
 ### MCP Tools (Exa — web search)
 - exa_* tools — Real-time web search for latest news, company research. Use when DB data is insufficient or user asks about breaking events.
@@ -79,9 +79,10 @@ IMPORTANT: The portfolio has 175 companies. If a user asks about a company not i
 - "slack_reply_to_thread" — Reply to a specific message thread.
 - "slack_add_reaction" — Add an emoji reaction to a message.
 - "slack_search_messages" — Search messages across the workspace.
-- "slack_upload_pdf_report" — Generate a PDF report with charts and upload it directly to a Slack channel as a file attachment. This is the preferred way to share reports on Slack. Use the default channel ID from SLACK_DIGEST_CHANNEL_ID when the user doesn't specify a channel.
+- "slack_upload_pdf_report" — Generate a dynamic PDF report and upload it to Slack. Supports the same filters as generate_pdf_report (company_names, sectors, title, subtitle, custom_sections). ALWAYS scope the report to the user's query. Use the default channel ID from SLACK_DIGEST_CHANNEL_ID when the user doesn't specify a channel.
 
 **Default Slack channel:** When the user says "Slack", "the channel", or "post to Slack" without specifying a channel, ALWAYS use channel ID "${process.env.SLACK_DIGEST_CHANNEL_ID || 'C0ALLSJPQDC'}". Never call list_channels to find it — use this ID directly.
+**IMPORTANT:** NEVER expose Slack channel IDs, workspace IDs, channel names, or any internal identifiers in your responses to the user. Say "posted to Slack" or "uploaded to the team channel" — never show raw IDs or channel names.
 
 ## TOOL USE PRIORITY
 1. Answer from provided context if sufficient
